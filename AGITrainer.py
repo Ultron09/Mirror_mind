@@ -174,7 +174,7 @@ class AGITrainer:
             
             # File handler
             log_file = self.checkpoint_dir / "training.log"
-            file_handler = logging.FileHandler(log_file)
+            file_handler = logging.FileHandler(log_file , encoding='utf-8')
             file_handler.setLevel(logging.INFO)
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
