@@ -1,5 +1,4 @@
-﻿
-# 🧠 MirrorMind (`airbornehrs`)
+﻿# 🧠 MirrorMind (`airbornehrs`)
 
 **A production-ready adaptive meta-learning framework for continuous self-improvement.**
 
@@ -37,28 +36,32 @@ cd Mirror_mind
 pip install -e .
 ```
 
-### 30-Second Usage (The `EasyTrainer`)
+### 30-Second Usage
 
-For rapid prototyping, use the high-level `EasyTrainer` API which handles the entire meta-learning loop, data loading, and curriculum scheduling automatically.
+Wrap your existing model with adaptive meta-learning:
 
-```
+```python
 import torch
-from airbornehrs.AGITrainer import EasyTrainer
+import torch.nn as nn
+from airbornehrs import AdaptiveFramework, MetaController
 
-# 1. Initialize the trainer (auto-detects GPU)
-trainer = EasyTrainer()
+# 1. Your existing model
+model = nn.Linear(128, 128)
 
-# 2. Generate or load your data
-X = torch.randn(1000, 10, 128)
-y = torch.randn(1000, 10, 128)
+# 2. Wrap with adaptive meta-learning
+framework = AdaptiveFramework(model, model_dim=128)
+controller = MetaController(framework)
 
-# 3. Train with self-improvement enabled
-# The framework handles the optimization cycle, curriculum, and adaptation
-summary = trainer.train(X, y, epochs=10)
-
-# 4. Predict
-preds = trainer.predict(X[:5])
-print(f"Training Complete. Best Loss: {summary['best_train_loss']:.4f}")
+# 3. In your training loop:
+for epoch in range(10):
+    output, uncertainty = framework(X)
+    loss = criterion(output, y)
+    loss.backward()
+  
+    # Adaptive optimization
+    controller.adapt(loss=loss.item())
+    optimizer.step()
+    optimizer.zero_grad()
 ```
 
 ## 📦 Architecture Components
@@ -126,11 +129,10 @@ prediction = adapter.predict(live_data, update=True, target=ground_truth)
 
 ```
 airbornehrs/
+├── __init__.py             # Public API & lazy imports
 ├── core.py                 # AdaptiveFramework & IntrospectionModule
 ├── meta_controller.py      # MAML, GradientAnalyzer, Scheduler
-├── production.py           # Inference & Online Learning Adapter
-├── AGITrainer.py           # High-level Orchestrator & EasyTrainer
-└── Dashboard.py            # Visualization Tools & Metric Tracking
+└── production.py           # Inference & Online Learning Adapter
 ```
 
 ## 📜 Documentation & Ethics
@@ -158,4 +160,4 @@ If you use `airbornehrs` in your research, please cite:
 
 **License:** MIT
 
-**Authors:** AirborneHRS Contributors
+**Author : Suryaansh Prithvijit Singh**
