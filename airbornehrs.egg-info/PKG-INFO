@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: airbornehrs
-Version: 0.1.1
+Version: 0.1.2
 Summary: Production-ready adaptive meta-learning framework for continual model improvement in deployed applications.
 Author-email: AirborneHRS Contributors <info@airbornehrs.com>
 License: MIT
@@ -32,8 +32,7 @@ Requires-Dist: pytest==7.4.0; extra == "dev"
 Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
 Dynamic: license-file
 
-﻿
-# 🧠 MirrorMind (`airbornehrs`)
+﻿# 🧠 MirrorMind (`airbornehrs`)
 
 **A production-ready adaptive meta-learning framework for continuous self-improvement.**
 
@@ -92,7 +91,7 @@ for epoch in range(10):
     output, uncertainty = framework(X)
     loss = criterion(output, y)
     loss.backward()
-    
+  
     # Adaptive optimization
     controller.adapt(loss=loss.item())
     optimizer.step()
@@ -195,4 +194,4 @@ If you use `airbornehrs` in your research, please cite:
 
 **License:** MIT
 
-**Authors:** AirborneHRS Contributors
+**Author : Suryaansh Prithvijit Singh**
