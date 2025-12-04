@@ -9,8 +9,8 @@ def test_easytrainer_smoke():
     except Exception as e:
         pytest.skip(f"AGITrainer import failed: {e}")
 
-    X = torch.randn(16, 4, 32)
-    y = torch.randn(16, 4, 32)
+    X = torch.randn(16, 4, 128)
+    y = torch.randn(16, 4, 128)
 
     trainer = EasyTrainer(device='cpu')
     summary = trainer.train(X, y, epochs=1, batch_size=8)
