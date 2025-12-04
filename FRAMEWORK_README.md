@@ -4,13 +4,13 @@
 
 ## 🎯 What is MirrorMind?
 
-MirrorMind is a **complete self-learning framework** where:
+MirrorMind is a research-oriented self-learning framework where:
 
 - **The Model** = "The Gun" (learns from experience)
-- **The Framework** = "The Stabilizer/Suppressor" (improves how it learns)
-- **The Loop** = Continuous self-improvement through feedback and adaptation
+- **The Framework** = "The Stabilizer" (adapts training dynamics to improve learning)
+- **The Loop** = Iterative improvement through feedback and adaptation
 
-Think of it like **ArcAGI meets Meta-Learning**: The model learns tasks, but more importantly, it learns *how to learn better* through the framework's adaptive guidance.
+Think of it as a meta-learning platform: the model learns tasks and the framework provides adaptive guidance to improve learning.
 
 ### Key Innovation
 

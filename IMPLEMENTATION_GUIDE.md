@@ -2,7 +2,7 @@
 
 ## What You Have Built
 
-A **complete, production-grade self-learning AGI framework** where models continuously improve themselves through intelligent adaptation and meta-learning.
+A **self-learning research framework** designed for experimental evaluation of continuous adaptation and meta-learning. The codebase provides modular components for implementing, testing, and measuring training-time adaptation strategies.
 
 ### The Vision
 
@@ -158,7 +158,7 @@ Input → Embedding → Transformer Layers →
   Reflection Head + Output Head + Uncertainty Head
 ```
 
-- Self-aware attention mechanisms
+- Introspective attention mechanisms (research probe)
 - Multi-layer reasoning capability
 - Confidence calibration
 - Uncertainty estimation
