@@ -1,0 +1,30 @@
+{
+  "experiment_name": "sample_synthetic_regression",
+  "commit": null,
+  "seed": 42,
+  "timestamp": "2025-12-04T13:10:10.352606Z",
+  "config_path": "C:\\Users\\surya\\In Use\\Personal\\UltOrg\\Airborne.HRS\\MirrorMind\\experiments\\configs\\sample_config.json",
+  "summary": {
+    "epochs_completed": 3,
+    "total_steps": 21,
+    "best_train_loss": 1.0180795873914446,
+    "best_val_loss": 1.002827227115631,
+    "epochs": [
+      {
+        "train_loss": 1.1627297912325179,
+        "val_loss": 1.012732207775116,
+        "num_steps": 7
+      },
+      {
+        "train_loss": 1.0232243878500802,
+        "val_loss": 1.0079233646392822,
+        "num_steps": 7
+      },
+      {
+        "train_loss": 1.0180795873914446,
+        "val_loss": 1.002827227115631,
+        "num_steps": 7
+      }
+    ]
+  }
+}

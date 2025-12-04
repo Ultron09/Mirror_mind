@@ -3,9 +3,22 @@ import json
 import os
 import random
 import datetime
+import sys
 
 import numpy as np
 import torch
+
+# ==========================================
+# FIX: Add project root to system path
+# ==========================================
+# Get the absolute path of the 'experiments' folder
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Get the parent folder (project root)
+project_root = os.path.dirname(current_dir)
+# Add to sys.path so we can import AGITrainer
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+# ==========================================
 
 
 def set_seed(seed: int):

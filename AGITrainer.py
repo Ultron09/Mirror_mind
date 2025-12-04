@@ -17,6 +17,7 @@ from pathlib import Path
 from datetime import datetime
 import logging
 from tqdm import tqdm
+from abc import ABC
 
 from SelfLearningFramework import (
     SelfLearningFramework, FrameworkConfig, FeedbackData, SelfLearningModel
