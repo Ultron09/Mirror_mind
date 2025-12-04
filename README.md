@@ -1,175 +1,161 @@
-﻿# airbornehrs
+﻿
+# 🧠 MirrorMind (`airbornehrs`)
 
-**Production-ready adaptive meta-learning framework for continual model improvement in deployed applications.**
+**A production-ready adaptive meta-learning framework for continuous self-improvement.**
 
-`airbornehrs` is a lightweight Python package that enables your machine learning models to continuously learn and improve while running in production. It implements adaptive optimization cycles, online meta-learning, and recursive state monitoring—allowing your models to refine themselves based on real-world data without manual retraining.
+`airbornehrs` (MirrorMind) is a lightweight PyTorch framework that turns standard deep learning models into self-improving systems. It implements an **"Optimization Cycle"** where the model not only learns a task but also introspects on its internal state, estimates uncertainty, and dynamically adjusts its own learning strategy (learning rate, curriculum, and weight adaptation) in real-time.
 
-## Why airbornehrs?
+## 🎯 Core Philosophy
 
-- **Production-first design**: Built to integrate seamlessly into running applications
-- **Continual learning**: Models improve dynamically as they encounter new data
-- **Modular architecture**: Clean separation of base learner from meta-controller enables ablation studies and custom adaptations
-- **Reproducible**: Pinned dependencies, configuration-driven experiments, and statistical rigor
-- **Low overhead**: Minimal computational cost for online adaptation
+Traditional training is static. MirrorMind implements a **Stabilizer System** that wraps your model, acting as a meta-controller to guide convergence and efficiency.
 
-## Installation
+### Research Terminology
 
-Install from PyPI:
+To maintain scientific rigor, we map high-level cognitive concepts to their algorithmic implementations:
 
-```bash
+| Concept                    | Algorithmic Implementation                                                 |
+| -------------------------- | -------------------------------------------------------------------------- |
+| **Introspection**    | Recursive State Monitoring & Internal Activation Analysis                  |
+| **Self-Awareness**   | Performance Calibration & Logit Entropy Estimation                         |
+| **The "Stabilizer"** | Meta-Controller with Dynamic LR Scheduling                                 |
+| **Curriculum**       | Adaptive Difficulty Scaling based on Loss Trajectory                       |
+| **The Loop**         | The Optimization Cycle (Forward$\to$Introspect$\to$Adapt$\to$Update) |
+
+## 🚀 Quick Start
+
+### Installation
+
+```
 pip install airbornehrs
 ```
 
 Or install from source for development:
 
-```bash
-git clone https://github.com/Ultron09/Mirror_mind.git
+```
+git clone [https://github.com/Ultron09/Mirror_mind.git](https://github.com/Ultron09/Mirror_mind.git)
 cd Mirror_mind
-python -m venv .venv
-.venv\Scripts\activate  # On Windows
-# source .venv/bin/activate  # On macOS/Linux
-pip install -e ".[dev]"
+pip install -e .
 ```
 
-## Quick Start
+### 30-Second Usage (The `EasyTrainer`)
 
-### Basic Integration
+For rapid prototyping, use the high-level `EasyTrainer` API which handles the entire meta-learning loop, data loading, and curriculum scheduling automatically.
 
-```python
+```
 import torch
-from airbornehrs import AdaptiveFramework, MetaController
+from airbornehrs.AGITrainer import EasyTrainer
 
-# Initialize your base model
-base_model = YourTorchModel(...)
+# 1. Initialize the trainer (auto-detects GPU)
+trainer = EasyTrainer()
 
-# Create adaptive framework with meta-controller
-framework = AdaptiveFramework(
-    model=base_model,
-    learning_rate=1e-4,
-    adaptation_steps=5
+# 2. Generate or load your data
+X = torch.randn(1000, 10, 128)
+y = torch.randn(1000, 10, 128)
+
+# 3. Train with self-improvement enabled
+# The framework handles the optimization cycle, curriculum, and adaptation
+summary = trainer.train(X, y, epochs=10)
+
+# 4. Predict
+preds = trainer.predict(X[:5])
+print(f"Training Complete. Best Loss: {summary['best_train_loss']:.4f}")
+```
+
+## 📦 Architecture Components
+
+For custom integration into existing pipelines, `airbornehrs` provides three modular layers:
+
+### 1. `AdaptiveFramework` (The Base)
+
+Wraps your standard PyTorch model to add introspection hooks. It calculates layer importance, tracks gradient health, and manages the experience replay buffer.
+
+```
+from airbornehrs import AdaptiveFramework, AdaptiveFrameworkConfig
+
+config = AdaptiveFrameworkConfig(model_dim=128, num_layers=4)
+framework = AdaptiveFramework(config)
+
+# Returns output AND uncertainty estimates (logit entropy)
+output, uncertainty = framework.forward(input_tensor)
+```
+
+### 2. `MetaController` (The Adaptation Layer)
+
+Orchestrates the "learning to learn" process. It analyzes gradient norms and loss landscapes to adjust hyperparameters (like Learning Rate and Regularization) on the fly using MAML-style optimization.
+
+```
+from airbornehrs import MetaController
+
+controller = MetaController(framework)
+
+# In your training loop:
+adaptation_metrics = controller.adapt(
+    loss=current_loss,
+    gradients=framework.get_gradients(),
+    performance_metrics={'loss_improvement': 0.01}
 )
-meta_controller = MetaController(framework)
-
-# Training loop with continual adaptation
-for batch_data, batch_labels in data_loader:
-    # Forward pass
-    predictions = framework.forward(batch_data)
-    loss = compute_loss(predictions, batch_labels)
-    
-    # Meta-learning step: adapt learning rate and training dynamics
-    meta_controller.adapt(
-        loss=loss,
-        gradients=framework.get_gradients(),
-        performance_metrics=framework.get_metrics()
-    )
-    
-    # Standard backward pass
-    loss.backward()
-    framework.optimizer.step()
-    framework.optimizer.zero_grad()
+# Automatically adjusts LR and curriculum difficulty based on feedback
 ```
 
-### Production Deployment
+### 3. `ProductionAdapter` (Deployment)
 
-```python
-from airbornehrs import ProductionAdapter
+A simplified interface for inference that supports  **Online Learning** . It allows the model to continue learning from live data streams in production with minimal overhead.
 
-# Load checkpoint from training
-adapter = ProductionAdapter.load_checkpoint("path/to/checkpoint.pt")
+```
+from airbornehrs import ProductionAdapter, InferenceMode
 
-# In your inference loop, models continuously improve
-prediction = adapter.predict(new_data, update=True)  # update=True enables online learning
+# Load a checkpoint in ONLINE mode
+adapter = ProductionAdapter.load_checkpoint(
+    "model.pt", 
+    inference_mode=InferenceMode.ONLINE
+)
+
+# Predict and learn from the result instantly
+prediction = adapter.predict(live_data, update=True, target=ground_truth)
 ```
 
-## Key Concepts
+## 📊 Features & Capabilities
 
-| Buzzword (Avoid) | Research Term (Use) |
-|---|---|
-| AGI | Adaptive Framework, Meta-Learning System |
-| Consciousness | Recursive State Monitoring, Introspection |
-| Self-Awareness | Performance Calibration, Uncertainty Estimation |
-| Thinking / Reasoning | Inference, Chain-of-Thought Processing |
-| Memories / Episodic Memory | Experience Replay Buffer |
-| Dreaming | Generative Replay, Latent Sampling |
-| Revolutionary / Magic | Novel, Proposed, Heuristic |
-| Stabilizer / Suppressor | Meta-Controller / Regularizer |
-| The Loop | The Optimization Cycle |
-| Confidence | Logit Probability, Softmax Entropy |
-| Intuition | Learned Heuristic, Implicit Bias |
+* **Recursive State Monitoring:** Analyzes internal activations to determine which layers are contributing most effectively to the task.
+* **MAML-Style Meta-Learning:** Implements Inner/Outer loop optimization to adapt to new tasks quickly with fewer samples.
+* **Dynamic Curriculum:** Automatically scales task difficulty (noise injection, complexity) based on the model's loss trajectory.
+* **Gradient Health Checks:** Detects exploding/vanishing gradients and auto-corrects learning rates before training diverges.
+* **HTML Dashboard:** Built-in visualization tools (`Dashboard.py`) to track learning efficiency, entropy, and adaptation triggers.
 
-## Core Components
+## 📂 Project Structure
 
-### `AdaptiveFramework`
-The base learner module. Wraps your PyTorch model and provides:
-- Introspection hooks for monitoring internal state
-- Gradient analysis and statistics
-- Performance tracking and diagnostics
+```
+airbornehrs/
+├── core.py                 # AdaptiveFramework & IntrospectionModule
+├── meta_controller.py      # MAML, GradientAnalyzer, Scheduler
+├── production.py           # Inference & Online Learning Adapter
+├── AGITrainer.py           # High-level Orchestrator & EasyTrainer
+└── Dashboard.py            # Visualization Tools & Metric Tracking
+```
 
-### `MetaController`
-The adaptation layer. Operates on top of `AdaptiveFramework` to:
-- Dynamically adjust learning rates based on loss landscapes
-- Implement curriculum strategies (easy-to-hard task scheduling)
-- Monitor uncertainty and logit entropy
-- Schedule regularization intensity
+## 📜 Documentation & Ethics
 
-### `ProductionAdapter`
-Simplified API for inference and online learning in production systems.
+* [**Implementation Guide**](https://www.google.com/search?q=IMPLEMENTATION_GUIDE.md "null")**:** Deep dive into the architecture and design patterns.
+* [**Ethics & Limitations**](https://www.google.com/search?q=ETHICS.md "null")**:** Guidelines for the responsible use of self-modifying systems.
+* [**Experiments**](https://www.google.com/search?q=experiments/README.md "null")**:** Reproducible scripts and configuration files.
 
-## Documentation
+## 🤝 Contributing
 
-- **[API Reference](GETTING_STARTED.md)** — Complete API surface and usage examples
-- **[Implementation Guide](IMPLEMENTATION_GUIDE.md)** — Architecture, extension points, and design patterns
-- **[Reproducibility Guide](experiments/README.md)** — How to run and reproduce experiments
-- **[Ethics & Limitations](ETHICS.md)** — Responsible use guidance and known constraints
-
-## Example: Training + Online Learning
-
-See `examples/` for complete scripts demonstrating:
-- Training with meta-controller from scratch
-- Online fine-tuning in production
-- Ablation studies (base learner vs. with meta-controller)
-- Custom adaptation strategies
-
-## Reproducibility & Reporting
-
-For any published results using `airbornehrs`:
-
-1. **Report statistics**: Mean ± standard deviation across 5+ independent seeds
-2. **Include baselines**: Compare with/without meta-controller (ablation)
-3. **Document config**: Share the exact configuration JSON/YAML used
-4. **Provide commands**: Include exact reproduction commands
-5. **Limitations**: Clearly state constraints and failure modes
-
-## Contributing
-
-We welcome contributions! Please:
-
-1. Open an issue describing the proposed change
-2. Create a focused pull request with tests
-3. Ensure all tests pass: `pytest tests/`
-4. Follow the code style and docstring conventions
-
-## License
-
-MIT License — see `LICENSE` for details
+Contributions are welcome! Please ensure any PRs regarding "consciousness" or "reasoning" are grounded in the algorithmic definitions provided in the `__init__.py` terminology mapping.
 
 ## Citation
 
 If you use `airbornehrs` in your research, please cite:
 
-```bibtex
+```
 @software{airbornehrs2025,
   title = {airbornehrs: Production-Ready Adaptive Meta-Learning Framework},
   author = {AirborneHRS Contributors},
   year = {2025},
-  url = {https://github.com/Ultron09/Mirror_mind},
+  url = {[https://github.com/Ultron09/Mirror_mind](https://github.com/Ultron09/Mirror_mind)}
 }
 ```
 
-## Acknowledgments
+**License:** MIT
 
-This project builds on research in meta-learning, online optimization, and continual learning. See the Git history for detailed authorship and contributions.
-
----
-
-**Questions?** Open an issue on GitHub or check the documentation.
+**Authors:** AirborneHRS Contributors
