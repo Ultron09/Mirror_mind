@@ -10,7 +10,7 @@
     Your PyPI API token (from https://pypi.org/manage/account/tokens/)
     
 .EXAMPLE
-    .\setup_pypi.ps1 -Token "pypi-AgEIcHlwaS5vcmc..."
+    .\setup_pypi.ps1 -Token "pypi-AgE..."
 #>
 
 param(

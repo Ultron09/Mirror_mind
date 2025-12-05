@@ -1,29 +1,62 @@
 {
   "experiment_name": "sample_synthetic_regression",
-  "commit": null,
-  "seed": 42,
-  "timestamp": "2025-12-04T13:21:21.382008Z",
+  "timestamp": "2025-12-05T07:26:54.770316Z",
   "config_path": "C:\\Users\\surya\\In Use\\Personal\\UltOrg\\Airborne.HRS\\MirrorMind\\experiments\\configs\\sample_config.json",
   "summary": {
-    "epochs_completed": 3,
-    "total_steps": 21,
-    "best_train_loss": 1.0180795873914446,
-    "best_val_loss": 1.002827227115631,
-    "epochs": [
+    "final_train_loss": 1.0188381161008562,
+    "final_val_loss": 1.006201148033142,
+    "total_epochs": 3,
+    "history": [
       {
-        "train_loss": 1.1627297912325179,
-        "val_loss": 1.012732207775116,
-        "num_steps": 7
+        "epoch": 1,
+        "train_loss": 1.1409668241228377,
+        "val_loss": 1.011637806892395,
+        "avg_lr": 0.001,
+        "avg_difficulty": 0.0,
+        "meta_stats": {
+          "gradient_stats": {
+            "mean_norm": 0.016181666920601856,
+            "max_norm": 0.2740165889263153,
+            "min_norm": 0.00043412428931333125,
+            "variance": 0.0016944024526476076,
+            "sparsity": 0.0
+          },
+          "learning_rate": 0.001
+        }
       },
       {
-        "train_loss": 1.0232243878500802,
-        "val_loss": 1.0079233646392822,
-        "num_steps": 7
+        "epoch": 2,
+        "train_loss": 1.024971944945199,
+        "val_loss": 1.0067939162254333,
+        "avg_lr": 0.0010750901785714286,
+        "avg_difficulty": 0.0,
+        "meta_stats": {
+          "gradient_stats": {
+            "mean_norm": 0.010902942592040814,
+            "max_norm": 0.27154630422592163,
+            "min_norm": 6.872190715512261e-05,
+            "variance": 0.0014869082306236045,
+            "sparsity": 0.0
+          },
+          "learning_rate": 0.0012155062500000004
+        }
       },
       {
-        "train_loss": 1.0180795873914446,
-        "val_loss": 1.002827227115631,
-        "num_steps": 7
+        "epoch": 3,
+        "train_loss": 1.0188381161008562,
+        "val_loss": 1.006201148033142,
+        "avg_lr": 0.0012693575179687504,
+        "avg_difficulty": 0.0,
+        "meta_stats": {
+          "gradient_stats": {
+            "mean_norm": 0.008707205208898254,
+            "max_norm": 0.2281934767961502,
+            "min_norm": 3.406532050576061e-05,
+            "variance": 0.001036627891772814,
+            "sparsity": 0.0
+          },
+          "learning_rate": 0.0014071004226562508
+        }
       }
     ]
   }

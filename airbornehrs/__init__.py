@@ -17,22 +17,11 @@ Quick start:
     >>> # In your training/inference loop:
     >>> controller.adapt(loss=loss, gradients=grads, metrics=perf_metrics)
 
-Terminology reference (replace marketing terms with research terms):
-    AGI                           → Adaptive Meta-Learning System
-    Consciousness                 → Recursive State Monitoring / Introspection
-    Self-Awareness                → Performance Calibration / Uncertainty Estimation
-    Thinking / Reasoning          → Inference / Chain-of-Thought Processing
-    Memories / Episodic Memory    → Experience Replay Buffer
-    Dreaming                      → Generative Replay / Latent Sampling
-    Revolutionary / Magic         → Novel / Proposed / Heuristic
-    Stabilizer / Suppressor       → Meta-Controller / Regularizer
-    The Loop                      → The Optimization Cycle
-    Confidence                    → Logit Probability / Softmax Entropy
-    Intuition                     → Learned Heuristic / Implicit Bias
+
 """
 
-__version__ = "0.1.0"
-__author__ = "AirborneHRS Contributors"
+__version__ = "0.1.3"
+__author__ = "Suryaansh Prithvijit Singh"
 
 # Lazy imports to handle circular dependencies
 def __getattr__(name):

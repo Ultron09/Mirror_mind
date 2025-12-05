@@ -12,7 +12,7 @@ from typing import Tuple, Optional, Dict, Any
 from pathlib import Path
 import logging
 
-from .core import AdaptiveFramework, AdaptiveFrameworkConfig
+from ..airbornehrs.core import AdaptiveFramework, AdaptiveFrameworkConfig
 
 
 class InferenceMode:
@@ -153,7 +153,12 @@ class ProductionAdapter:
             ProductionAdapter instance
         """
         if device is None:
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            if torch.cuda.is_available():
+                device = torch.device('cuda')
+            elif torch.backends.mps.is_available():
+                device = torch.device('mps')
+            else:
+                device = torch.device('cpu')
         elif isinstance(device, str):
             device = torch.device(device)
         

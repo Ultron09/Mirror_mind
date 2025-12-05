@@ -22,7 +22,7 @@ STEP 1: Create PyPI Account (if needed)
 STEP 2: Store Credentials
    Option A (Easiest - PowerShell):
    ├─ $env:TWINE_USERNAME = "__token__"
-   └─ $env:TWINE_PASSWORD = "pypi-AgEIcHlwaS5vcmc..."
+   └─ $env:TWINE_PASSWORD = "pypi-AgEIcHl..."
 
    Option B (Persistent - pip.ini):
    ├─ File: %APPDATA%\pip\pip.ini
