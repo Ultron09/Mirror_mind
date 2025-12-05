@@ -1,0 +1,12 @@
+.pytest_cashe/
+.airbornehrs.egg-info/
+checkpoints/
+test_env/
+__pycache__/
+test_final_env/
+test_venv/
+pypi_interactive_guide.py
+pypi_upload.py
+setup_pypi.ps1
+production_model.pt
+PUBLICATION_SUMMARY.py
