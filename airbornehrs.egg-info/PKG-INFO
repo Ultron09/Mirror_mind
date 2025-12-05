@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: airbornehrs
-Version: 0.1.2
+Version: 0.1.3
 Summary: Production-ready adaptive meta-learning framework for continual model improvement in deployed applications.
 Author-email: AirborneHRS Contributors <info@airbornehrs.com>
 License: MIT
