@@ -12,7 +12,6 @@ from typing import Tuple, Optional, Dict, Any
 from pathlib import Path
 import logging
 
-# FIX: Changed from broken relative import to absolute import
 from airbornehrs.core import AdaptiveFramework, AdaptiveFrameworkConfig
 
 
@@ -163,14 +162,26 @@ class ProductionAdapter:
                 device = torch.device('cpu')
         elif isinstance(device, str):
             device = torch.device(device)
+            
+        # 1. Load the checkpoint dictionary first to get the config
+        # We need weights_only=False because the config is a pickled dataclass
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
         
-        # Create framework with default config
-        config = AdaptiveFrameworkConfig()
+        # 2. Extract config from the checkpoint
+        # This ensures we build the model with the EXACT SAME dimensions as trained
+        config = checkpoint.get('config')
+        if config is None:
+            print("Warning: Config not found in checkpoint, using defaults (may fail).")
+            config = AdaptiveFrameworkConfig()
+            
+        # 3. Initialize framework with the CORRECT config
         framework = AdaptiveFramework(config, device=device)
         
-        # Load checkpoint
-        framework.load_checkpoint(path)
-        framework.model.eval()
+        # 4. Load weights
+        framework.model.load_state_dict(checkpoint['model_state'])
+        if 'optimizer_state' in checkpoint:
+            framework.optimizer.load_state_dict(checkpoint['optimizer_state'])
+        framework.step_count = checkpoint.get('step_count', 0)
         
         # Create and return adapter
         adapter = cls(framework, inference_mode)
