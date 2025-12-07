@@ -28,7 +28,7 @@ jobs:
       - name: 🔥 Run Extreme Stress Test
         # This verifies the "Spike-and-Settle" reflex graph
         run: |
-          python experiments/run_proof_extreme.py
+          python experiments/run_experiment.py
           
       - name: 🌍 Run Endgame (Production Sim)
         # This verifies Introspection and Recovery from Crisis
