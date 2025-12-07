@@ -10,3 +10,4 @@ pypi_upload.py
 setup_pypi.ps1
 production_model.pt
 PUBLICATION_SUMMARY.py
+airbornehrs.egg-info/

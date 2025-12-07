@@ -12,11 +12,11 @@ from airbornehrs import AdaptiveFramework, AdaptiveFrameworkConfig
 print("✅ AdaptiveFramework imports successful")
 
 # Test 2: Meta-controller
-from airbornehrs import MetaController, GradientAnalyzer
+from airbornehrs.meta_controller import MetaController, GradientAnalyzer
 print("✅ MetaController imports successful")
 
 # Test 3: Production adapter
-from airbornehrs import ProductionAdapter, InferenceMode
+from airbornehrs.production import ProductionAdapter, InferenceMode
 print("✅ ProductionAdapter imports successful")
 
 # Test 4: Quick instantiation

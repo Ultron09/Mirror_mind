@@ -525,7 +525,7 @@ class AdaptiveFramework:
     
     def load_checkpoint(self, path: str):
         """Load model checkpoint"""
-        checkpoint = torch.load(path, map_location=self.device)
+        checkpoint = torch.load(path, map_location=self.device,weights_only=False)
         self.model.load_state_dict(checkpoint['model_state'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state'])
         self.metrics_history = checkpoint.get('metrics', [])
