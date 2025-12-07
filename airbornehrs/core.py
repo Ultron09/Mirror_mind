@@ -28,12 +28,6 @@ from datetime import datetime
 class AdaptiveFrameworkConfig:
     """
     Configuration for the adaptive meta-learning framework.
-    
-    This framework enables models to improve themselves through:
-    - Recursive state monitoring (introspection)
-    - Performance calibration and uncertainty estimation
-    - Dynamic learning rate control
-    - Curriculum scheduling
     """
     # Model architecture
     model_dim: int = 256
@@ -105,14 +99,6 @@ class MetricsSnapshot:
 class IntrospectionModule(nn.Module):
     """
     State monitoring and introspection layer for performance calibration.
-    
-    Provides:
-    - Recursive state monitoring (analysis of internal activations)
-    - Uncertainty estimation (logit probability and entropy)
-    - Calibration diagnostics
-    
-    This is NOT consciousness or self-awareness—it is algorithmic
-    introspection for model diagnostics and online learning.
     """
     
     def __init__(self, config: AdaptiveFrameworkConfig):
@@ -142,20 +128,16 @@ class IntrospectionModule(nn.Module):
         # Output heads
         self.output_head = nn.Linear(config.model_dim, config.model_dim)
         
-        # Uncertainty estimation (logit entropy)
+        # Uncertainty estimation (Outputs Log Variance for Gaussian NLL)
         self.uncertainty_head = nn.Linear(config.model_dim, 1)
         
     def forward(self, x: torch.Tensor, return_internals: bool = False):
         """
         Forward pass with optional introspection.
         
-        Args:
-            x: Input tensor
-            return_internals: If True, return internal state for monitoring
-            
         Returns:
             output: Model output
-            uncertainty: Uncertainty estimate (logit entropy)
+            log_var: Uncertainty estimate (Log Variance)
             internals: (optional) Internal state dictionary
         """
         batch_size, seq_len, _ = x.shape
@@ -176,12 +158,13 @@ class IntrospectionModule(nn.Module):
         # Generate output
         output = self.output_head(x)
         
-        # Uncertainty estimation (logit probability entropy)
-        uncertainty = self.uncertainty_head(x)
+        # Uncertainty estimation (Log Variance)
+        # We clamp it or treat it directly as log variance
+        log_var = self.uncertainty_head(x)
         
         if return_internals:
-            return output, uncertainty, internals
-        return output, uncertainty
+            return output, log_var, internals
+        return output, log_var
 
 
 # ==================== PERFORMANCE MONITOR ====================
@@ -189,11 +172,6 @@ class IntrospectionModule(nn.Module):
 class PerformanceMonitor:
     """
     Meta-controller component for dynamic adaptation.
-    
-    Adjusts training dynamics based on:
-    - Loss trajectory and gradient statistics
-    - Layer importance and activation patterns
-    - Learning efficiency metrics
     """
     
     def __init__(self, model: IntrospectionModule, config: AdaptiveFrameworkConfig, device):
@@ -206,10 +184,7 @@ class PerformanceMonitor:
         self.bias_adaptation_history = deque(maxlen=1000)
         
     def compute_layer_importance(self, activations: Dict[str, torch.Tensor]) -> Dict[str, float]:
-        """
-        Compute importance scores for each layer.
-        Layers with high variance contribute more to learning.
-        """
+        """Compute importance scores for each layer."""
         importance_scores = {}
         
         for layer_name, activation in activations.items():
@@ -247,14 +222,11 @@ class PerformanceMonitor:
         return grad_stats
     
     def adapt_weights(self, 
-                     current_loss: float, 
-                     previous_loss: float,
-                     activations: Dict[str, torch.Tensor]) -> Tuple[float, float]:
+                      current_loss: float, 
+                      previous_loss: float,
+                      activations: Dict[str, torch.Tensor]) -> Tuple[float, float]:
         """
         Adapt model weights based on loss trajectory and layer importance.
-        
-        Returns:
-            (weight_adaptation_magnitude, bias_adaptation_magnitude)
         """
         loss_improvement = (previous_loss - current_loss) / (previous_loss + 1e-9)
         
@@ -283,10 +255,7 @@ class PerformanceMonitor:
 # ==================== FEEDBACK BUFFER ====================
 
 class FeedbackBuffer:
-    """
-    Experience replay buffer for online learning.
-    Maintains recent feedback for curriculum learning strategies.
-    """
+    """Experience replay buffer for online learning."""
     
     def __init__(self, config: AdaptiveFrameworkConfig, device):
         self.config = config
@@ -295,12 +264,7 @@ class FeedbackBuffer:
         self.episode_count = 0
         self.step_count = 0
         
-    def add(self, 
-            input_data: torch.Tensor,
-            output: torch.Tensor,
-            target: torch.Tensor,
-            reward: float,
-            loss: float):
+    def add(self, input_data, output, target, reward, loss):
         """Add feedback to buffer"""
         snapshot = PerformanceSnapshot(
             input_data=input_data.cpu().clone(),
@@ -314,24 +278,11 @@ class FeedbackBuffer:
         self.buffer.append(snapshot)
         self.step_count += 1
         
-    def sample_random(self, batch_size: int) -> Optional[List[PerformanceSnapshot]]:
-        """Sample random batch (off-policy)"""
-        if len(self.buffer) < batch_size:
-            return None
-        
-        indices = np.random.choice(len(self.buffer), batch_size, replace=False)
-        return [list(self.buffer)[i] for i in indices]
-    
     def sample_recent(self, batch_size: int) -> Optional[List[PerformanceSnapshot]]:
         """Sample recent batch (on-policy)"""
         if len(self.buffer) < batch_size:
             return None
-        
         return list(self.buffer)[-batch_size:]
-    
-    def new_episode(self):
-        """Mark new episode"""
-        self.episode_count += 1
 
 
 # ==================== ADAPTIVE FRAMEWORK ====================
@@ -339,15 +290,6 @@ class FeedbackBuffer:
 class AdaptiveFramework:
     """
     Production-ready adaptive meta-learning framework.
-    
-    Enables continuous model improvement through:
-    - Introspection: recursive state monitoring of internal representations
-    - Performance calibration: uncertainty estimation and diagnostics
-    - Optimization cycle: dynamic adaptation of training dynamics
-    - Online learning: experience replay and curriculum strategies
-    
-    Designed for integration into production systems where models must
-    improve over time as they encounter real-world data.
     """
     
     def __init__(self, config: AdaptiveFrameworkConfig, device=None):
@@ -365,9 +307,6 @@ class AdaptiveFramework:
         
         # Optimizer
         self.optimizer = AdamW(self.model.parameters(), lr=config.learning_rate)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, T_max=config.epochs
-        )
         
         # Metrics
         self.metrics_history: List[MetricsSnapshot] = []
@@ -380,46 +319,35 @@ class AdaptiveFramework:
         """Setup logging"""
         logger = logging.getLogger('AdaptiveFramework')
         logger.setLevel(logging.INFO)
-        
         if not logger.handlers:
             handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
-            handler.setFormatter(formatter)
             logger.addHandler(handler)
-        
         return logger
     
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Forward pass for inference.
-        
-        Args:
-            x: Input tensor
-            
-        Returns:
-            (output, uncertainty)
-        """
+        """Forward pass for inference."""
         x = x.to(self.device)
         with torch.no_grad():
-            output, uncertainty = self.model(x, return_internals=False)
-        return output, uncertainty
+            output, log_var = self.model(x, return_internals=False)
+        return output, log_var
     
     def train_step(self, 
-                  input_data: torch.Tensor,
-                  target: torch.Tensor) -> Dict[str, float]:
+                   input_data: torch.Tensor,
+                   target: torch.Tensor) -> Dict[str, float]:
         """
         Single training step with introspection and adaptation.
-        
-        Returns:
-            Dictionary with training metrics
         """
         input_data = input_data.to(self.device)
         target = target.to(self.device)
         
-        output, uncertainty, internals = self.model(input_data, return_internals=True)
-        loss = F.mse_loss(output, target)
+        # 1. Forward pass
+        # We get 'log_var' (log variance), not 'uncertainty'
+        output, log_var, internals = self.model(input_data, return_internals=True)
+        
+        # 2. Compute Loss: Gaussian Negative Log Likelihood
+        precision = torch.exp(-log_var)
+        mse = (output - target) ** 2
+        loss = torch.mean(0.5 * (log_var + mse * precision))
         
         self.optimizer.zero_grad()
         loss.backward()
@@ -428,7 +356,8 @@ class AdaptiveFramework:
         
         metrics = {
             'loss': loss.item(),
-            'uncertainty_mean': uncertainty.mean().item()
+            # FIX: Use log_var, which is the variable we actually have
+            'uncertainty_mean': log_var.mean().item()
         }
         
         self.loss_history.append(loss.item())
@@ -450,64 +379,21 @@ class AdaptiveFramework:
         return metrics
     
     def evaluate(self, 
-                input_data: torch.Tensor,
-                target: torch.Tensor) -> Dict[str, float]:
-        """
-        Evaluate on validation data.
-        
-        Returns:
-            Evaluation metrics
-        """
+                 input_data: torch.Tensor,
+                 target: torch.Tensor) -> Dict[str, float]:
+        """Evaluate on validation data."""
         input_data = input_data.to(self.device)
         target = target.to(self.device)
         
         self.model.eval()
         with torch.no_grad():
-            output, uncertainty = self.model(input_data, return_internals=False)
+            output, log_var = self.model(input_data, return_internals=False)
             loss = F.mse_loss(output, target)
         self.model.train()
         
         return {
             'eval_loss': loss.item(),
-            'uncertainty_mean': uncertainty.mean().item()
-        }
-    
-    def learn_from_buffer(self, 
-                         batch_size: Optional[int] = None,
-                         num_epochs: int = 1) -> Dict[str, float]:
-        """
-        Learn from collected feedback (experience replay).
-        
-        Args:
-            batch_size: If None, uses config.batch_size
-            num_epochs: Number of epochs to train
-            
-        Returns:
-            Aggregate metrics
-        """
-        if batch_size is None:
-            batch_size = self.config.batch_size
-        
-        feedback_batch = self.feedback_buffer.sample_recent(batch_size)
-        if not feedback_batch:
-            return {}
-        
-        inputs = torch.stack([f.input_data for f in feedback_batch]).to(self.device)
-        targets = torch.stack([f.target for f in feedback_batch]).to(self.device)
-        
-        epoch_metrics = []
-        
-        for epoch in range(num_epochs):
-            self.model.train()
-            metrics = self.train_step(inputs, targets)
-            epoch_metrics.append(metrics)
-            
-            if (epoch + 1) % self.config.log_frequency == 0:
-                self.logger.info(f"Epoch {epoch + 1}/{num_epochs}: Loss = {metrics['loss']:.4f}")
-        
-        return {
-            'avg_loss': np.mean([m['loss'] for m in epoch_metrics]),
-            'final_loss': epoch_metrics[-1]['loss'] if epoch_metrics else 0
+            'uncertainty_mean': log_var.mean().item()
         }
     
     def save_checkpoint(self, path: str):
@@ -515,65 +401,20 @@ class AdaptiveFramework:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         torch.save({
             'model_state': self.model.state_dict(),
-            'optimizer_state': self.optimizer.state_dict(),
             'config': self.config,
-            'metrics': self.metrics_history,
-            'step_count': self.step_count,
-            'epoch_count': self.epoch_count
+            'step_count': self.step_count
         }, path)
         self.logger.info(f"Checkpoint saved to {path}")
     
     def load_checkpoint(self, path: str):
         """Load model checkpoint"""
-        checkpoint = torch.load(path, map_location=self.device,weights_only=False)
+        checkpoint = torch.load(path, map_location=self.device)
         self.model.load_state_dict(checkpoint['model_state'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state'])
-        self.metrics_history = checkpoint.get('metrics', [])
         self.step_count = checkpoint.get('step_count', 0)
-        self.epoch_count = checkpoint.get('epoch_count', 0)
         self.logger.info(f"Checkpoint loaded from {path}")
     
     def get_metrics(self) -> Dict[str, Any]:
         """Get summary of metrics"""
-        if not self.metrics_history:
+        if not self.loss_history:
             return {}
-        
-        recent = self.metrics_history[-100:]
-        
-        return {
-            'total_steps': self.step_count,
-            'total_epochs': self.epoch_count,
-            'avg_recent_loss': np.mean([m.train_loss for m in recent]),
-            'best_loss': min([m.train_loss for m in self.metrics_history]),
-            'learning_efficiency': np.mean([m.learning_efficiency for m in recent])
-        }
-
-
-# ==================== EXAMPLE ====================
-
-if __name__ == "__main__":
-    # Create framework
-    config = AdaptiveFrameworkConfig(
-        model_dim=128,
-        num_layers=4,
-        num_heads=4,
-        batch_size=16
-    )
-    
-    framework = AdaptiveFramework(config)
-    
-    print("✅ AdaptiveFramework initialized")
-    print(f"Device: {framework.device}")
-    print(f"Model parameters: {sum(p.numel() for p in framework.model.parameters()):,}")
-    
-    # Generate dummy data
-    X = torch.randn(16, 10, 128)
-    y = torch.randn(16, 10, 128)
-    
-    print("\n🚀 Starting optimization cycle...")
-    for epoch in range(3):
-        framework.model.train()
-        metrics = framework.train_step(X, y)
-        print(f"Epoch {epoch}: Loss = {metrics['loss']:.4f}, Uncertainty = {metrics['uncertainty_mean']:.4f}")
-    
-    print("\n✅ Adaptive framework is working!")
+        return {'avg_recent_loss': np.mean(self.loss_history)}
