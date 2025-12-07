@@ -12,7 +12,8 @@ from typing import Tuple, Optional, Dict, Any
 from pathlib import Path
 import logging
 
-from ..airbornehrs.core import AdaptiveFramework, AdaptiveFrameworkConfig
+# FIX: Changed from broken relative import to absolute import
+from airbornehrs.core import AdaptiveFramework, AdaptiveFrameworkConfig
 
 
 class InferenceMode:
@@ -68,7 +69,8 @@ class ProductionAdapter:
         Returns:
             Model output
         """
-        output, uncertainty = self.framework.forward(input_data)
+        # The core forward pass now returns (output, log_var)
+        output, log_var = self.framework.forward(input_data)
         
         if update and target is not None:
             self._update_online(input_data, output, target)
@@ -123,13 +125,13 @@ class ProductionAdapter:
     
     def get_uncertainty(self, input_data: torch.Tensor) -> torch.Tensor:
         """
-        Get uncertainty estimates for predictions.
+        Get uncertainty estimates (Log Variance) for predictions.
         
         Returns:
             Uncertainty tensor (same shape as output)
         """
-        _, uncertainty = self.framework.forward(input_data)
-        return uncertainty
+        _, log_var = self.framework.forward(input_data)
+        return log_var
     
     def save_checkpoint(self, path: str):
         """Save production checkpoint"""
@@ -178,62 +180,3 @@ class ProductionAdapter:
     def get_metrics(self) -> Dict[str, Any]:
         """Get current metrics"""
         return self.framework.get_metrics()
-
-
-# ==================== QUICK START EXAMPLES ====================
-
-def example_training():
-    """Example: Train with meta-controller"""
-    print("Example: Training with adaptive meta-learning")
-    
-    config = AdaptiveFrameworkConfig(
-        model_dim=128,
-        num_layers=4,
-        num_heads=4,
-        batch_size=16
-    )
-    
-    framework = AdaptiveFramework(config)
-    
-    # Dummy training data
-    X_train = torch.randn(100, 10, 128)
-    y_train = torch.randn(100, 10, 128)
-    
-    print("Training...")
-    for epoch in range(3):
-        framework.model.train()
-        metrics = framework.train_step(X_train, y_train)
-        print(f"  Epoch {epoch}: Loss = {metrics['loss']:.4f}")
-    
-    # Save checkpoint
-    framework.save_checkpoint("model_checkpoint.pt")
-    print("✅ Model saved")
-
-
-def example_production():
-    """Example: Inference with online learning"""
-    print("\nExample: Production deployment with online learning")
-    
-    # Load model
-    adapter = ProductionAdapter.load_checkpoint(
-        "model_checkpoint.pt",
-        inference_mode=InferenceMode.ONLINE
-    )
-    
-    # Simulate inference stream
-    for step in range(5):
-        new_data = torch.randn(1, 10, 128)
-        new_target = torch.randn(1, 10, 128)
-        
-        # Predict with online learning
-        prediction = adapter.predict(new_data, update=True, target=new_target)
-        uncertainty = adapter.get_uncertainty(new_data)
-        
-        print(f"  Step {step}: Uncertainty = {uncertainty.mean():.4f}")
-    
-    print("✅ Production inference complete")
-
-
-if __name__ == "__main__":
-    example_training()
-    example_production()
