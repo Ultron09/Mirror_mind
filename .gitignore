@@ -11,6 +11,5 @@ setup_pypi.ps1
 production_model.pt
 PUBLICATION_SUMMARY.py
 airbornehrs.egg-info/
-pyproject.toml
 dist/
 .pytest_cashe/
