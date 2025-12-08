@@ -122,7 +122,7 @@ def run_universal_benchmark():
     meta_config = MetaControllerConfig(
         base_lr=0.0005,
         max_lr=0.02,
-        meta_learning_rate=1e-4
+        reptile_learning_rate=1e-4
     )
 
     # 2. Initialize Core System

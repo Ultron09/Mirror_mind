@@ -109,32 +109,50 @@ class DynamicLearningRateScheduler:
     def step(self, loss: float, gradient_stats: Dict[str, float]) -> float:
         self.loss_history.append(loss)
         
-        # 1. Gradient Explosion -> CUT LR
+        # 1. Gradient Explosion -> CUT LR (Safety First)
         if gradient_stats['mean_norm'] > 10.0:
             self.current_lr *= 0.5
-            # self.logger.info("Explosion detected. Cutting LR.")
         
         # 2. Gradient Vanishing -> BOOST LR
         elif gradient_stats['mean_norm'] > 0 and gradient_stats['mean_norm'] < 1e-6:
             self.current_lr *= 1.1
-            # self.logger.info("Vanishing detected. Boosting LR.")
         
-        # 3. Loss Plateau (Robust Logic)
+        # 3. INTELLIGENT ADAPTATION (The V3 Fix)
         elif len(self.loss_history) >= 5:
             recent = list(self.loss_history)[-5:]
-            improvement = (recent[0] - recent[-1]) # Absolute difference
             
-            if abs(improvement) < 0.01:
-                self.current_lr *= 1.05 # Boost plasticity
+            # Calculate trend
+            start_loss = recent[0]
+            end_loss = recent[-1]
+            
+            # A. SURPRISE DETECTION (New Task / Concept Drift)
+            # If loss INCREASED significantly, we are failing -> Panic Boost
+            if end_loss > start_loss * 1.1:  # >10% worse
+                self.current_lr *= 1.5       # Aggressive Spike (The Reflex)
+                self.logger.info("⚡ CONCEPT DRIFT DETECTED (Loss Spike). Plasticity Boost!")
+                
+            # B. PLATEAU DETECTION (Stagnation)
+            # If loss is flat, we are stuck -> Gentle Boost
+            elif abs(start_loss - end_loss) < 0.01:
+                self.current_lr *= 1.05
+                
+            # C. CONVERGENCE (Learning)
+            # If loss is decreasing normally -> Stabilize (Decay)
             else:
-                self.current_lr *= 0.95 # Stabilize
-        
-        # SAFETY: Prevent "Brain Death" (Zero LR)
+                self.current_lr *= 0.95
+
+        # SAFETY: Absolute floor to prevent "Brain Death"
         self.current_lr = np.clip(
             self.current_lr,
-            max(self.config.min_lr, 1e-5), # Force minimum 1e-5
+            max(self.config.min_lr, 1e-4), # V3: Raised floor to 1e-4 for faster reaction
             self.config.max_lr
         )
+        
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = self.current_lr
+        
+        self.lr_history.append(self.current_lr)
+        return self.current_lr
         
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = self.current_lr
