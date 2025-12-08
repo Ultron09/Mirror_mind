@@ -35,6 +35,11 @@ jobs:
         run: |
           python experiments/run_endgame.py
           
+      - name: 🌍 Run Multi -Model Compatibilty Test
+        # This verifies Introspection and Recovery from Crisis
+        run: |
+          python experiments/run_multi_model.py
+          
       - name: 📊 Upload Test Results
         # Save the generated graphs as artifacts so you can download them from GitHub
         if: always()

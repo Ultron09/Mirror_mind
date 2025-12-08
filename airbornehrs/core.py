@@ -1,26 +1,31 @@
 """
-Core Adaptive Meta-Learning Framework
-======================================
+Core Adaptive Meta-Learning Framework (Optimized V2)
+====================================================
 
 Contains the base AdaptiveFramework and IntrospectionModule for continuous learning.
-This is the production-ready core that users integrate into their applications.
+Includes High-Performance optimizations:
+- torch.compile (Graph Compilation)
+- norm_first=True (Pre-LN Stability)
+- Reservoir Sampling (Long-term Memory)
+- Robust Loss & NaN Guards
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import AdamW
-from torch.utils.data import DataLoader, TensorDataset
 from dataclasses import dataclass, field
-from typing import Tuple, Dict, List, Optional, Any, Callable
+from typing import Tuple, Dict, List, Optional, Any
 import numpy as np
+import random
 from collections import deque
-import json
 from pathlib import Path
-from abc import ABC, abstractmethod
 import logging
 from datetime import datetime
+import sys
 
+# OPTIMIZATION: Use Tensor Cores on Ampere+ GPUs
+torch.set_float32_matmul_precision('high')
 
 # ==================== CONFIGURATION ====================
 
@@ -36,6 +41,10 @@ class AdaptiveFrameworkConfig:
     ff_dim: int = 1024
     dropout: float = 0.1
     
+    # Optimization & Speed
+    compile_model: bool = True       # New: Use torch.compile
+    use_amp: bool = False            # New: Mixed Precision (Optional)
+    
     # Learning parameters
     learning_rate: float = 1e-3
     meta_learning_rate: float = 1e-4
@@ -50,10 +59,6 @@ class AdaptiveFrameworkConfig:
     feedback_buffer_size: int = 10000
     evaluation_frequency: int = 100
     adaptation_threshold: float = 0.05
-    
-    # Meta-learning (optimization cycle)
-    inner_loop_steps: int = 5
-    outer_loop_steps: int = 1
     
     # Logging
     log_frequency: int = 50
@@ -83,14 +88,9 @@ class PerformanceSnapshot:
 class MetricsSnapshot:
     """Snapshot of model performance metrics"""
     timestamp: float
-    episode: int
     step: int
-    train_loss: float
-    eval_loss: float
-    adaptation_needed: bool
-    weight_adaptation_magnitude: float
-    bias_adaptation_magnitude: float
-    learning_efficiency: float
+    loss: float
+    uncertainty: float
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -99,6 +99,7 @@ class MetricsSnapshot:
 class IntrospectionModule(nn.Module):
     """
     State monitoring and introspection layer for performance calibration.
+    OPTIMIZED: Uses Pre-Norm (norm_first=True) for deep transformer stability.
     """
     
     def __init__(self, config: AdaptiveFrameworkConfig):
@@ -114,52 +115,47 @@ class IntrospectionModule(nn.Module):
                 nhead=config.num_heads,
                 dim_feedforward=config.ff_dim,
                 dropout=config.dropout,
-                batch_first=True
+                batch_first=True,
+                norm_first=True,   # CRITICAL: Pre-Norm stabilizes deep training
+                activation="gelu"  # Smoother than ReLU
             ) for _ in range(config.num_layers)
         ])
         
         # Introspection probe: monitors internal state
         self.state_monitor = nn.Sequential(
             nn.Linear(config.model_dim, config.model_dim // 2),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Linear(config.model_dim // 2, 1)
         )
         
         # Output heads
         self.output_head = nn.Linear(config.model_dim, config.model_dim)
         
-        # Uncertainty estimation (Outputs Log Variance for Gaussian NLL)
+        # Uncertainty estimation (Outputs Log Variance)
         self.uncertainty_head = nn.Linear(config.model_dim, 1)
         
     def forward(self, x: torch.Tensor, return_internals: bool = False):
-        """
-        Forward pass with optional introspection.
-        
-        Returns:
-            output: Model output
-            log_var: Uncertainty estimate (Log Variance)
-            internals: (optional) Internal state dictionary
-        """
-        batch_size, seq_len, _ = x.shape
-        
         # Embed input
         x = self.embedding(x)
-        internals = {'embeddings': x.clone()}
+        internals = {}
+        if return_internals:
+            internals['embeddings'] = x.clone()
         
         # Apply transformer layers
         for i, layer in enumerate(self.transformer_layers):
             x = layer(x)
-            internals[f'layer_{i}'] = x.clone()
+            if return_internals:
+                internals[f'layer_{i}'] = x.clone()
         
-        # Recursive state monitoring: analyze patterns in learned representations
-        introspection_signal = self.state_monitor(x)
-        internals['introspection'] = introspection_signal
+        # Recursive state monitoring
+        if return_internals:
+            introspection_signal = self.state_monitor(x)
+            internals['introspection'] = introspection_signal
         
         # Generate output
         output = self.output_head(x)
         
         # Uncertainty estimation (Log Variance)
-        # We clamp it or treat it directly as log variance
         log_var = self.uncertainty_head(x)
         
         if return_internals:
@@ -179,110 +175,103 @@ class PerformanceMonitor:
         self.config = config
         self.device = device
         self.logger = logging.getLogger('PerformanceMonitor')
-        
         self.weight_adaptation_history = deque(maxlen=1000)
-        self.bias_adaptation_history = deque(maxlen=1000)
         
     def compute_layer_importance(self, activations: Dict[str, torch.Tensor]) -> Dict[str, float]:
-        """Compute importance scores for each layer."""
+        """Compute importance scores based on activation statistics."""
         importance_scores = {}
-        
         for layer_name, activation in activations.items():
             if 'layer_' in layer_name:
+                # Metric: High magnitude + High Variance = Important
                 mean_activation = activation.abs().mean()
                 std_activation = activation.std()
-                activation_sparsity = (activation.abs() < 0.01).float().mean()
+                # Avoid div by zero or nan
+                if torch.isnan(std_activation): std_activation = torch.tensor(0.0)
                 
-                importance = mean_activation * std_activation * (1 - activation_sparsity)
-                importance_scores[layer_name] = float(importance)
-        
+                importance = mean_activation * std_activation
+                importance_scores[layer_name] = float(importance.item())
         return importance_scores
-    
-    def compute_gradient_statistics(self, loss: torch.Tensor) -> Dict[str, float]:
-        """Compute gradient statistics for learning diagnostics"""
-        loss.backward(retain_graph=True)
-        
-        grad_stats = {
-            'mean_grad': 0,
-            'max_grad': 0,
-            'min_grad': 0,
-            'grad_variance': 0
-        }
-        
-        total_grad_norm = 0
-        num_params = 0
-        
-        for param in self.model.parameters():
-            if param.grad is not None:
-                total_grad_norm += param.grad.data.norm(2).item()
-                num_params += 1
-        
-        grad_stats['mean_grad'] = total_grad_norm / max(num_params, 1)
-        
-        return grad_stats
     
     def adapt_weights(self, 
                       current_loss: float, 
                       previous_loss: float,
                       activations: Dict[str, torch.Tensor]) -> Tuple[float, float]:
         """
-        Adapt model weights based on loss trajectory and layer importance.
+        Adapt model weights in-place (Self-Modification).
         """
-        loss_improvement = (previous_loss - current_loss) / (previous_loss + 1e-9)
-        
+        loss_improvement = (previous_loss - current_loss)
         adaptation_magnitude = 0.0
         
-        if loss_improvement < self.config.adaptation_threshold:
+        # If learning is stalling (low improvement), trigger self-modification
+        if abs(loss_improvement) < self.config.adaptation_threshold:
             importance_scores = self.compute_layer_importance(activations)
             
             with torch.no_grad():
                 for name, param in self.model.named_parameters():
-                    if param.requires_grad:
-                        layer_importance = 0.5
+                    if param.requires_grad and 'transformer' in name:
+                        layer_importance = 0.1 # Default base importance
                         for layer_name, importance in importance_scores.items():
                             if layer_name in name:
                                 layer_importance = importance
                         
-                        adaptation = torch.randn_like(param) * self.config.weight_adaptation_lr * layer_importance
-                        param.data += adaptation
+                        # Add controlled noise based on layer importance to break local minima
+                        noise_scale = self.config.weight_adaptation_lr * layer_importance
+                        adaptation = torch.randn_like(param) * noise_scale
+                        
+                        # Apply adaptation
+                        param.data.add_(adaptation)
                         adaptation_magnitude += adaptation.abs().mean().item()
         
         self.weight_adaptation_history.append(adaptation_magnitude)
-        
         return adaptation_magnitude, 0.0
 
 
-# ==================== FEEDBACK BUFFER ====================
+# ==================== RESERVOIR BUFFER ====================
 
 class FeedbackBuffer:
-    """Experience replay buffer for online learning."""
+    """
+    Robust Experience Replay Buffer using Reservoir Sampling (Algorithm R).
+    Ensures long-term memory representation without unbounded growth.
+    """
     
     def __init__(self, config: AdaptiveFrameworkConfig, device):
-        self.config = config
+        self.capacity = config.feedback_buffer_size
         self.device = device
-        self.buffer = deque(maxlen=config.feedback_buffer_size)
-        self.episode_count = 0
-        self.step_count = 0
+        
+        # Fixed size list for reservoir
+        self.buffer: List[PerformanceSnapshot] = []
+        self.total_seen = 0 # Counter for Algorithm R
         
     def add(self, input_data, output, target, reward, loss):
-        """Add feedback to buffer"""
+        """Add feedback using Reservoir Sampling logic"""
         snapshot = PerformanceSnapshot(
-            input_data=input_data.cpu().clone(),
-            output=output.cpu().clone(),
-            target=target.cpu().clone(),
+            input_data=input_data.detach().cpu(),
+            output=output.detach().cpu(),
+            target=target.detach().cpu(),
             reward=reward,
             loss=loss,
             timestamp=datetime.now().timestamp(),
-            episode=self.episode_count
+            episode=self.total_seen
         )
-        self.buffer.append(snapshot)
-        self.step_count += 1
+        
+        # 1. Fill buffer until full
+        if len(self.buffer) < self.capacity:
+            self.buffer.append(snapshot)
+        
+        # 2. Once full, replace elements with probability k/n
+        else:
+            # Random index between 0 and total_seen
+            replace_idx = random.randint(0, self.total_seen)
+            if replace_idx < self.capacity:
+                self.buffer[replace_idx] = snapshot
+                
+        self.total_seen += 1
         
     def sample_recent(self, batch_size: int) -> Optional[List[PerformanceSnapshot]]:
-        """Sample recent batch (on-policy)"""
+        """Sample batch from reservoir"""
         if len(self.buffer) < batch_size:
             return None
-        return list(self.buffer)[-batch_size:]
+        return random.sample(self.buffer, batch_size)
 
 
 # ==================== ADAPTIVE FRAMEWORK ====================
@@ -300,34 +289,39 @@ class AdaptiveFramework:
         self.config = config
         self.logger = self._setup_logging()
         
-        # Core components
+        # 1. Core components
         self.model = IntrospectionModule(config).to(device)
         self.monitor = PerformanceMonitor(self.model, config, device)
         self.feedback_buffer = FeedbackBuffer(config, device)
         
-        # Optimizer
+        # 2. Compiler Optimization (PyTorch 2.0+)
+        if config.compile_model and hasattr(torch, 'compile'):
+            self.logger.info("🚀 Compiling model with torch.compile() for speed...")
+            try:
+                self.model = torch.compile(self.model)
+            except Exception as e:
+                self.logger.warning(f"Compilation failed, falling back to eager mode: {e}")
+        
+        # 3. Optimizer
         self.optimizer = AdamW(self.model.parameters(), lr=config.learning_rate)
         
         # Metrics
-        self.metrics_history: List[MetricsSnapshot] = []
         self.loss_history = deque(maxlen=config.evaluation_frequency)
-        
         self.step_count = 0
-        self.epoch_count = 0
         
     def _setup_logging(self) -> logging.Logger:
-        """Setup logging"""
         logger = logging.getLogger('AdaptiveFramework')
         logger.setLevel(logging.INFO)
         if not logger.handlers:
-            handler = logging.StreamHandler()
+            handler = logging.StreamHandler(sys.stdout)
             logger.addHandler(handler)
         return logger
     
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass for inference."""
         x = x.to(self.device)
-        with torch.no_grad():
+        # Inference mode is more efficient
+        with torch.inference_mode():
             output, log_var = self.model(x, return_internals=False)
         return output, log_var
     
@@ -337,70 +331,72 @@ class AdaptiveFramework:
         """
         Single training step with introspection and adaptation.
         """
+        self.model.train()
         input_data = input_data.to(self.device)
         target = target.to(self.device)
         
+        self.optimizer.zero_grad(set_to_none=True) # Perf optimization
+        
         # 1. Forward pass
-        # We get 'log_var' (log variance), not 'uncertainty'
         output, log_var, internals = self.model(input_data, return_internals=True)
         
-        # 2. Compute Loss: Gaussian Negative Log Likelihood
+        # 2. Robust Loss Calculation
+        # FIX: Clamp log_var to prevent -inf/inf instability
+        # -10.0 corresponds to sigma ~ 0.006 (high certainty)
+        # +10.0 corresponds to sigma ~ 148.0 (high uncertainty)
+        log_var = torch.clamp(log_var, min=-10.0, max=10.0)
+        
         precision = torch.exp(-log_var)
         mse = (output - target) ** 2
+        
+        # Gaussian NLL Loss: 0.5 * (log_var + (y-pred)^2 / var)
         loss = torch.mean(0.5 * (log_var + mse * precision))
         
-        self.optimizer.zero_grad()
+        # 3. NaN Guard
+        if torch.isnan(loss) or torch.isinf(loss):
+            self.logger.warning(f"⚠️ NaN Loss detected at step {self.step_count}. Skipping update.")
+            return {'loss': 10.0, 'uncertainty_mean': 0.0} # Return dummy high loss
+        
+        # 4. Backward & Step
         loss.backward()
+        
+        # Gradient clipping is crucial for Transformer stability
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
         self.optimizer.step()
         
+        # 5. Metrics & History
+        loss_val = loss.item()
         metrics = {
-            'loss': loss.item(),
-            # FIX: Use log_var, which is the variable we actually have
+            'loss': loss_val,
             'uncertainty_mean': log_var.mean().item()
         }
         
-        self.loss_history.append(loss.item())
+        self.loss_history.append(loss_val)
         
+        # 6. Adaptation Trigger
         if self.step_count % self.config.evaluation_frequency == 0:
-            if len(self.loss_history) > 1:
+            if len(self.loss_history) > 10:
                 current_loss = np.mean(list(self.loss_history)[-10:])
-                previous_loss = np.mean(list(self.loss_history)[-20:-10])
+                previous_loss = np.mean(list(self.loss_history)[-20:-10]) if len(self.loss_history) >= 20 else current_loss + 0.1
                 
-                weight_adapt_mag, bias_adapt_mag = self.monitor.adapt_weights(
+                weight_adapt_mag, _ = self.monitor.adapt_weights(
                     current_loss, previous_loss, internals
                 )
-                
                 metrics['weight_adaptation_magnitude'] = weight_adapt_mag
-                metrics['bias_adaptation_magnitude'] = bias_adapt_mag
         
         self.step_count += 1
-        
         return metrics
-    
-    def evaluate(self, 
-                 input_data: torch.Tensor,
-                 target: torch.Tensor) -> Dict[str, float]:
-        """Evaluate on validation data."""
-        input_data = input_data.to(self.device)
-        target = target.to(self.device)
-        
-        self.model.eval()
-        with torch.no_grad():
-            output, log_var = self.model(input_data, return_internals=False)
-            loss = F.mse_loss(output, target)
-        self.model.train()
-        
-        return {
-            'eval_loss': loss.item(),
-            'uncertainty_mean': log_var.mean().item()
-        }
     
     def save_checkpoint(self, path: str):
         """Save model checkpoint"""
         Path(path).parent.mkdir(parents=True, exist_ok=True)
+        # Handle compiled models (unwrap prefix)
+        state_dict = self.model.state_dict()
+        if hasattr(self.model, '_orig_mod'):
+             state_dict = self.model._orig_mod.state_dict()
+             
         torch.save({
-            'model_state': self.model.state_dict(),
+            'model_state': state_dict,
             'config': self.config,
             'step_count': self.step_count
         }, path)
@@ -408,8 +404,14 @@ class AdaptiveFramework:
     
     def load_checkpoint(self, path: str):
         """Load model checkpoint"""
-        checkpoint = torch.load(path, map_location=self.device , weights_only=False)
-        self.model.load_state_dict(checkpoint['model_state'])
+        checkpoint = torch.load(path, map_location=self.device, weights_only=False)
+        
+        # Handle loading into compiled model
+        if hasattr(self.model, '_orig_mod'):
+            self.model._orig_mod.load_state_dict(checkpoint['model_state'])
+        else:
+            self.model.load_state_dict(checkpoint['model_state'])
+            
         self.step_count = checkpoint.get('step_count', 0)
         self.logger.info(f"Checkpoint loaded from {path}")
     
