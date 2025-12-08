@@ -1,36 +1,46 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "airbornehrs"
-version = "0.1.9.3.1"
-description = "Production-ready adaptive meta-learning framework for continual model improvement in deployed applications."
+version = "0.2.0"
+description = "Production-grade adaptive meta-learning framework for continual model improvement. Implements research DOI: 10.5281/zenodo.17839490."
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "AirborneHRS Contributors", email = "friday@airbornehrs.in"}
+    {name = "AirborneHRS Team", email = "friday@airbornehrs.in"}
 ]
 keywords = [
     "meta-learning",
-    "online learning",
-    "continual learning",
-    "adaptive optimization",
-    "production ML"
+    "online-learning",
+    "continual-learning",
+    "adaptive-optimization",
+    "production-ml",
+    "automl",
+    "pytorch",
+    "deep-learning",
+    "self-healing-systems",
+    "neural-networks",
+    "model-monitoring"
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Information Technology",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: System :: Monitoring",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
 dependencies = [
@@ -42,8 +52,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest==7.4.0",
+    "pytest>=7.4.0",
     "pytest-cov>=4.0.0",
+    "black>=23.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0"
 ]
 
 [project.urls]
@@ -51,9 +64,17 @@ Homepage = "https://github.com/Ultron09/Mirror_mind"
 Documentation = "https://github.com/Ultron09/Mirror_mind#readme"
 Repository = "https://github.com/Ultron09/Mirror_mind.git"
 Issues = "https://github.com/Ultron09/Mirror_mind/issues"
+"Research Paper" = "https://doi.org/10.5281/zenodo.17839490"
 
 [tool.setuptools]
 packages = ["airbornehrs"]
 
 [tool.setuptools.package-data]
-airbornehrs = ["*.json", "*.yaml"]
+airbornehrs = ["*.json", "*.yaml", "*.csv"] 
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]

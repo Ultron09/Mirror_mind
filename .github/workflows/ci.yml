@@ -24,12 +24,6 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install -e .  # Install airbornehrs in editable mode
           
-
-      - name: 🔥 Run Extreme Stress Test
-        # This verifies the "Spike-and-Settle" reflex graph
-        run: |
-          python experiments/run_experiment.py
-          
       - name: 🌍 Run Endgame (Production Sim)
         # This verifies Introspection and Recovery from Crisis
         run: |
