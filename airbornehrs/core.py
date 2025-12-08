@@ -1,10 +1,10 @@
 """
-Core Adaptive Meta-Learning Framework (Optimized V2)
-====================================================
+Core Adaptive Meta-Learning Framework (Optimized V2.1)
+======================================================
 
 Contains the base AdaptiveFramework and IntrospectionModule for continuous learning.
 Includes High-Performance optimizations:
-- torch.compile (Graph Compilation)
+- torch.compile (Graph Compilation) -> With Windows Fallback
 - norm_first=True (Pre-LN Stability)
 - Reservoir Sampling (Long-term Memory)
 - Robust Loss & NaN Guards
@@ -23,6 +23,8 @@ from pathlib import Path
 import logging
 from datetime import datetime
 import sys
+import platform
+import shutil
 
 # OPTIMIZATION: Use Tensor Cores on Ampere+ GPUs
 torch.set_float32_matmul_precision('high')
@@ -42,8 +44,8 @@ class AdaptiveFrameworkConfig:
     dropout: float = 0.1
     
     # Optimization & Speed
-    compile_model: bool = True       # New: Use torch.compile
-    use_amp: bool = False            # New: Mixed Precision (Optional)
+    compile_model: bool = True       # Default to True, but will auto-disable if needed
+    use_amp: bool = False            # Mixed Precision
     
     # Learning parameters
     learning_rate: float = 1e-3
@@ -294,14 +296,27 @@ class AdaptiveFramework:
         self.monitor = PerformanceMonitor(self.model, config, device)
         self.feedback_buffer = FeedbackBuffer(config, device)
         
-        # 2. Compiler Optimization (PyTorch 2.0+)
+        # 2. Compiler Optimization with ROBUST FALLBACK
+        # The crash happened here because Windows requires MSVC (cl.exe)
         if config.compile_model and hasattr(torch, 'compile'):
-            self.logger.info("🚀 Compiling model with torch.compile() for speed...")
-            try:
-                self.model = torch.compile(self.model)
-            except Exception as e:
-                self.logger.warning(f"Compilation failed, falling back to eager mode: {e}")
-        
+            
+            # Check for Windows C++ Compiler
+            is_windows = platform.system() == 'Windows'
+            has_compiler = shutil.which('cl') is not None
+            
+            if is_windows and not has_compiler:
+                self.logger.warning("⚠️ Windows detected without C++ Compiler (cl.exe).")
+                self.logger.warning("   Disabling torch.compile() to prevent crash.")
+                self.logger.info("   (Install Visual Studio Build Tools to enable compilation speedups)")
+                config.compile_model = False
+            else:
+                self.logger.info("🚀 Compiling model with torch.compile() for speed...")
+                try:
+                    self.model = torch.compile(self.model)
+                except Exception as e:
+                    self.logger.warning(f"Compilation failed during init: {e}")
+                    config.compile_model = False
+
         # 3. Optimizer
         self.optimizer = AdamW(self.model.parameters(), lr=config.learning_rate)
         
