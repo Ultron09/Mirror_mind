@@ -13,6 +13,5 @@ PUBLICATION_SUMMARY.py
 airbornehrs.egg-info/
 dist/
 .pytest_cashe/
-experiments/
 Results/
 DEPLOY.txt
