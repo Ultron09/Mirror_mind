@@ -7,5 +7,6 @@ pytest==7.4.0
 tqdm
 pytest
 transformers
+datasets
 # NOTE: If you require GPU-enabled PyTorch builds, install an appropriate
 # wheel for your CUDA version following instructions at https://pytorch.org
