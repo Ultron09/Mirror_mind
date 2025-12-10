@@ -92,75 +92,74 @@ class GradientAnalyzer:
 
 # ==================== ROBUST LR SCHEDULER ====================
 
+import numpy as np
+from collections import deque
+
 class DynamicLearningRateScheduler:
     """
-    Adapts learning rate with safety clamps for continuous learning.
+    Statistically Adaptive Scheduler (No Magic Numbers).
+    Uses Z-Scores to detect anomalies relative to the model's own history.
     """
     
-    def __init__(self, optimizer: torch.optim.Optimizer, config: MetaControllerConfig):
+    def __init__(self, optimizer, config):
         self.optimizer = optimizer
         self.config = config
         self.current_lr = config.base_lr
-        self.logger = logging.getLogger('DynamicLR')
         
-        self.loss_history = deque(maxlen=20)
-        self.lr_history = deque(maxlen=100)
+        # History buffers for statistical analysis
+        self.loss_history = deque(maxlen=100)
+        self.grad_history = deque(maxlen=100)
         
+        # Safety floor/ceiling
+        self.min_lr = config.min_lr
+        self.max_lr = config.max_lr
+
     def step(self, loss: float, gradient_stats: Dict[str, float]) -> float:
         self.loss_history.append(loss)
+        grad_norm = gradient_stats.get('mean_norm', 0.0)
+        self.grad_history.append(grad_norm)
         
-        # 1. Gradient Explosion -> CUT LR (Safety First)
-        if gradient_stats['mean_norm'] > 10.0:
-            self.current_lr *= 0.5
-        
-        # 2. Gradient Vanishing -> BOOST LR
-        elif gradient_stats['mean_norm'] > 0 and gradient_stats['mean_norm'] < 1e-6:
-            self.current_lr *= 1.1
-        
-        # 3. INTELLIGENT ADAPTATION (The V3 Fix)
-        elif len(self.loss_history) >= 5:
-            recent = list(self.loss_history)[-5:]
-            
-            # Calculate trend
-            start_loss = recent[0]
-            end_loss = recent[-1]
-            
-            # A. SURPRISE DETECTION (New Task / Concept Drift)
-            # If loss INCREASED significantly, we are failing -> Panic Boost
-            if end_loss > start_loss * 1.1:  # >10% worse
-                self.current_lr *= 1.5       # Aggressive Spike (The Reflex)
-                self.logger.info("⚡ CONCEPT DRIFT DETECTED (Loss Spike). Plasticity Boost!")
-                
-            # B. PLATEAU DETECTION (Stagnation)
-            # If loss is flat, we are stuck -> Gentle Boost
-            elif abs(start_loss - end_loss) < 0.01:
-                self.current_lr *= 1.05
-                
-            # C. CONVERGENCE (Learning)
-            # If loss is decreasing normally -> Stabilize (Decay)
-            else:
-                self.current_lr *= 0.95
+        # Need enough data to establish a baseline
+        if len(self.grad_history) < 10:
+            return self.current_lr
 
-        # SAFETY: Absolute floor to prevent "Brain Death"
-        self.current_lr = np.clip(
-            self.current_lr,
-            max(self.config.min_lr, 1e-4), # V3: Raised floor to 1e-4 for faster reaction
-            self.config.max_lr
-        )
+        # 1. CALCULATE STATISTICS (Self-Baseline)
+        grad_mean = np.mean(self.grad_history)
+        grad_std = np.std(self.grad_history) + 1e-9 # Avoid div/0
+        
+        loss_mean = np.mean(self.loss_history)
+        loss_std = np.std(self.loss_history) + 1e-9
+        
+        # 2. DETECT ANOMALIES (Z-Score)
+        # How many standard deviations away is the current step?
+        grad_z_score = (grad_norm - grad_mean) / grad_std
+        loss_z_score = (loss - loss_mean) / loss_std
+        
+        # 3. ADAPTIVE LOGIC (Relative, not Absolute)
+        
+        # A. EXPLOSION DETECTED (Grads > 2 Sigma) -> CUT LR
+        if grad_z_score > 2.0:
+            # Panic brake: Reduce proportional to severity
+            reduction = 0.5 * (1.0 / grad_z_score) 
+            self.current_lr *= max(0.1, reduction)
+            
+        # B. SURPRISE DETECTED (Loss Spike > 1.5 Sigma) -> BOOST PLASTICITY
+        # This implies a new task or domain shift
+        elif loss_z_score > 1.5:
+            # Boost proportional to surprise
+            boost = 1.0 + (loss_z_score * 0.1) 
+            self.current_lr *= min(2.0, boost)
+            
+        # C. STAGNATION (Low Variance) -> CONVERGENCE DECAY
+        elif abs(loss_z_score) < 0.1 and abs(grad_z_score) < 0.1:
+            self.current_lr *= 0.98
+
+        # 4. Apply & Clamp
+        self.current_lr = np.clip(self.current_lr, self.min_lr, self.max_lr)
         
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = self.current_lr
-        
-        self.lr_history.append(self.current_lr)
-        return self.current_lr
-        
-        for param_group in self.optimizer.param_groups:
-            param_group['lr'] = self.current_lr
-        
-        self.lr_history.append(self.current_lr)
-        return self.current_lr
-    
-    def get_lr(self) -> float:
+            
         return self.current_lr
 
 

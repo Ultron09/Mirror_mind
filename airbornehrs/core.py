@@ -120,10 +120,16 @@ class IntrospectionModule(nn.Module):
                 dropout=config.dropout,
                 batch_first=True,
                 norm_first=True,   # CRITICAL: Pre-Norm stabilizes deep training
-                activation="gelu"  # Smoother than ReLU
+                activation="gelu",
+                  # Smoother than ReLU
+
             ) for _ in range(config.num_layers)
         ])
-        
+        self.weight_editor = nn.Sequential(
+            nn.Linear(config.model_dim, config.model_dim ),
+            nn.Tanh(),
+            nn.Linear(config.model_dim, config.model_dim)
+        )
         # Introspection probe: monitors internal state
         self.state_monitor = nn.Sequential(
             nn.Linear(config.model_dim, config.model_dim // 2),
@@ -161,8 +167,17 @@ class IntrospectionModule(nn.Module):
         # Uncertainty estimation (Log Variance)
         log_var = self.uncertainty_head(x)
         
+        # --- NEW LOGIC START ---
+        # 1. Calculate the correction
+        global_state = x.mean(dim=1) 
+        correction_vector = self.weight_editor(global_state)
+        
+        # 2. CRITICAL FIX: Store it in internals so PerformanceMonitor can see it
         if return_internals:
+            internals['correction_vector'] = correction_vector
             return output, log_var, internals
+        # --- NEW LOGIC END ---
+
         return output, log_var
 
 
@@ -200,30 +215,53 @@ class PerformanceMonitor:
                       previous_loss: float,
                       activations: Dict[str, torch.Tensor]) -> Tuple[float, float]:
         """
-        Adapt model weights in-place (Self-Modification).
+        Adapt model weights in-place using Neural Weight Editing (Self-Correction).
+        Replaces random noise with intentional updates driven by the Introspection Module.
         """
         loss_improvement = (previous_loss - current_loss)
         adaptation_magnitude = 0.0
         
-        # If learning is stalling (low improvement), trigger self-modification
+        # 1. Check for Neural Intent (The Correction Vector)
+        # If the model didn't output a correction (e.g. during eval), we abort.
+        if 'correction_vector' not in activations:
+            return 0.0, 0.0
+
+        # Shape: [Batch, Dim] -> [Dim] (Consensus correction across the batch)
+        correction_vector = activations['correction_vector'].mean(dim=0)
+        
+        # 2. Trigger Self-Modification if Learning Stalls
         if abs(loss_improvement) < self.config.adaptation_threshold:
             importance_scores = self.compute_layer_importance(activations)
             
             with torch.no_grad():
                 for name, param in self.model.named_parameters():
+                    # Only adapt active parameters in the transformer block
                     if param.requires_grad and 'transformer' in name:
-                        layer_importance = 0.1 # Default base importance
+                        
+                        # A. Determine Layer Importance
+                        layer_importance = 0.1 # Default
                         for layer_name, importance in importance_scores.items():
                             if layer_name in name:
                                 layer_importance = importance
                         
-                        # Add controlled noise based on layer importance to break local minima
-                        noise_scale = self.config.weight_adaptation_lr * layer_importance
-                        adaptation = torch.randn_like(param) * noise_scale
-                        
-                        # Apply adaptation
-                        param.data.add_(adaptation)
-                        adaptation_magnitude += adaptation.abs().mean().item()
+                        # B. Apply Neural Edit (The Logic Upgrade)
+                        # We apply the correction vector to Biases and LayerNorms (1D params)
+                        # This acts like "Shift/Scale Adaptation" or "Bias Tuning".
+                        if param.ndim == 1 and param.shape[0] == correction_vector.shape[0]:
+                            
+                            # Delta = BaseRate * Importance * Intent
+                            delta = self.config.weight_adaptation_lr * layer_importance * correction_vector
+                            
+                            # Apply the fix directly
+                            param.data.add_(delta)
+                            adaptation_magnitude += delta.abs().mean().item()
+                            
+                        # C. (Optional) For 2D Weights, we can apply a tiny stabilizer noise
+                        # masked by importance, just to prevent getting stuck in saddles.
+                        elif param.ndim == 2:
+                            # Much smaller scale for matrices
+                            noise = torch.randn_like(param) * (self.config.weight_adaptation_lr * 0.01 * layer_importance)
+                            param.data.add_(noise)
         
         self.weight_adaptation_history.append(adaptation_magnitude)
         return adaptation_magnitude, 0.0
