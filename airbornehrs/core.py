@@ -25,6 +25,7 @@ from datetime import datetime
 import sys
 import platform
 import shutil
+from airbornehrs.ewc import EWCHandler
 
 # OPTIMIZATION: Use Tensor Cores on Ampere+ GPUs
 torch.set_float32_matmul_precision('high')
@@ -295,7 +296,7 @@ class AdaptiveFramework:
         self.model = IntrospectionModule(config).to(device)
         self.monitor = PerformanceMonitor(self.model, config, device)
         self.feedback_buffer = FeedbackBuffer(config, device)
-        
+        self.ewc = EWCHandler(self.model , ewc_lambda=0.4)
         # 2. Compiler Optimization with ROBUST FALLBACK
         # The crash happened here because Windows requires MSVC (cl.exe)
         if config.compile_model and hasattr(torch, 'compile'):
@@ -366,6 +367,10 @@ class AdaptiveFramework:
         
         # Gaussian NLL Loss: 0.5 * (log_var + (y-pred)^2 / var)
         loss = torch.mean(0.5 * (log_var + mse * precision))
+        #==============================EWC memory 
+        if self.ewc.is_enabled():
+            ewc_loss = self.ewc.compute_penalty()
+            loss += ewc_loss
         
         # 3. NaN Guard
         if torch.isnan(loss) or torch.isinf(loss):
@@ -435,3 +440,4 @@ class AdaptiveFramework:
         if not self.loss_history:
             return {}
         return {'avg_recent_loss': np.mean(self.loss_history)}
+    
