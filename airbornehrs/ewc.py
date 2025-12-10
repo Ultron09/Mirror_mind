@@ -82,3 +82,21 @@ class EWCHandler:
                 loss += (fisher * (param - opt_param).pow(2)).sum()
         
         return loss * (self.ewc_lambda / 2)
+    
+    def lock_pretrained_weights(self):
+        """
+        Locks current weights as important without needing data.
+        Assumes uniform importance (Fisher = 1.0).
+        Useful for preserving pretrained initialization blindly.
+        """
+        self.fisher_dict = {}
+        self.opt_param_dict = {}
+        
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                # Store current pretrained weights
+                self.opt_param_dict[name] = param.data.clone()
+                # Assume moderate importance for everything
+                self.fisher_dict[name] = torch.ones_like(param.data) 
+        
+        print("🔒 Pretrained weights locked (Uniform Importance).")
