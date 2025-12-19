@@ -561,8 +561,8 @@ class AdaptiveFramework(nn.Module):
             
             # 3. Reconstruct Tensors & Move to Device
             # We must detach to ensure we don't backprop into the buffer history
-            inputs = torch.stack([s.input_data for s in samples]).to(self.device)
-            targets = torch.stack([s.target for s in samples]).to(self.device)
+            inputs = torch.cat([s.input_data for s in samples], dim=0).to(self.device)
+            targets = torch.cat([s.target for s in samples], dim=0).to(self.device)
             
             # 4. The Sync Step: Call train_step()
             # This is CRITICAL. By calling train_step instead of doing a manual backward pass,
