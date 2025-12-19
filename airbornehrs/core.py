@@ -506,14 +506,76 @@ class AdaptiveFramework(nn.Module):
 
         self.loss_history.append(loss.item())
         self.feedback_buffer.add(input_data, pred, target_data, -loss.item(), loss.item())
+        
+        # AUTOMATIC DREAMING (Experience Replay)
+        # Every 10 steps, replay 1 epoch of memories to lock them in.
+        replay_loss = 0.0
+        if self.step_count > 0 and self.step_count % 10 == 0:
+             dream_metrics = self.learn_from_buffer(batch_size=16, num_epochs=1)
+             replay_loss = dream_metrics.get('replay_loss', 0.0)
         self.step_count += 1
         
         return {
             "loss": loss.item(),
+            "replay_loss": replay_loss,
             "uncertainty_mean": log_var.item(),
             "weight_adaptation": weight_adapt_mag,
             "surprise_z_score": float(z_score) if isinstance(z_score, (float, int)) else z_score.item()
         }
+    
+    def learn_from_buffer(self, batch_size: int = 32, num_epochs: int = 1) -> Dict[str, float]:
+        """
+        Active Replay ("Dreaming"): Re-trains on past experiences to consolidate memory.
+        
+        This closes the loop by:
+        1. Sampling diverse memories from the FeedbackBuffer.
+        2. Re-running them through the full optimization cycle (Meta-Controller + EWC).
+        3. syncing the "Fast Weights" with long-term storage.
+        
+        Args:
+            batch_size (int): Number of memories to replay per step.
+            num_epochs (int): How many passes to make over the sampled memories.
+            
+        Returns:
+            Dict containing average loss during replay.
+        """
+        # 1. Safety Check: Do we have enough memories?
+        if len(self.feedback_buffer.buffer) < batch_size:
+            # If buffer is small, just learn from what we have
+            if len(self.feedback_buffer.buffer) < 10:
+                return {} # Too few to be useful
+            batch_size = len(self.feedback_buffer.buffer)
+
+        self.logger.info(f"💤 Dreaming: Consolidating {num_epochs} epochs from {len(self.feedback_buffer.buffer)} memories...")
+        
+        replay_losses = []
+        
+        # 2. Optimization Loop
+        self.model.train()
+        
+        for epoch in range(num_epochs):
+            # Reservoir Sampling: Randomly pick experiences
+            # We use random.sample for diversity (breaking temporal correlations)
+            samples = random.sample(self.feedback_buffer.buffer, batch_size)
+            
+            # 3. Reconstruct Tensors & Move to Device
+            # We must detach to ensure we don't backprop into the buffer history
+            inputs = torch.stack([s.input_data for s in samples]).to(self.device)
+            targets = torch.stack([s.target for s in samples]).to(self.device)
+            
+            # 4. The Sync Step: Call train_step()
+            # This is CRITICAL. By calling train_step instead of doing a manual backward pass,
+            # we force the replay to go through:
+            # - The Introspection Engine (is this memory surprising?)
+            # - The EWC Handler (does this violate previous constraints?)
+            # - The Meta-Controller (should we adjust LR?)
+            metrics = self.train_step(inputs, targets)
+            replay_losses.append(metrics['loss'])
+            
+        avg_loss = np.mean(replay_losses) if replay_losses else 0.0
+        self.logger.info(f"✨ Dream Complete. Avg Replay Loss: {avg_loss:.4f}")
+        
+        return {'replay_loss': avg_loss}
 
     def save_checkpoint(self, path: str):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -560,3 +622,4 @@ class AdaptiveFramework(nn.Module):
         if data_loader is not None:
              self.logger.info("🧠 Consolidating Memories (Full EWC Scan)...")
              self.ewc.save_task_memory(data_loader)
+             
