@@ -35,7 +35,7 @@ def __getattr__(name):
         from .core import IntrospectionModule
         return IntrospectionModule
     elif name == 'EWCHandler':
-        from .core import EWCHandler  # Change to .ewc if you created ewc.py
+        from .ewc import EWCHandler  # Change to .ewc if you created ewc.py
         return EWCHandler
     elif name == 'PerformanceMonitor':
         from .core import PerformanceMonitor

@@ -73,6 +73,27 @@ class AdaptiveFrameworkConfig:
     # Logging
     log_frequency: int = 50
     checkpoint_frequency: int = 500
+    @classmethod
+    def quick_start(cls):
+        """Beginner-friendly CPU config"""
+        return cls(
+            model_dim=128, 
+            num_layers=4, 
+            device='cpu', 
+            compile_model=False,
+            learning_rate=1e-3
+        )
+
+    @classmethod
+    def production(cls):
+        """High-performance GPU config"""
+        return cls(
+            model_dim=512, 
+            num_layers=12, 
+            device='cuda', 
+            use_amp=True,
+            compile_model=True
+        )
 
 
 # ==================== DATA STRUCTURES ====================
@@ -358,7 +379,10 @@ class AdaptiveFramework(nn.Module):
             self.meta_log_probs.append(log_prob)
                 
         except Exception as e:
-            pass
+            self.logger.warning(f"Introspection failed: {e}")
+            log_var = torch.tensor(0.0).to(self.device)
+            affine_modifiers = None
+            self.meta_log_probs.clear()
             
         return output, log_var, affine_modifiers
 
