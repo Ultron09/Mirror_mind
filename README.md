@@ -1,4 +1,5 @@
-﻿# 🧠 MirrorMind (`airbornehrs`)
+﻿
+# 🧠 MirrorMind (`airbornehrs`)
 
 **A production-ready adaptive meta-learning framework for continuous self-improvement.**
 
@@ -40,7 +41,7 @@ pip install -e .
 
 Wrap your existing model with adaptive meta-learning:
 
-```python
+```
 import torch
 import torch.nn as nn
 from airbornehrs import AdaptiveFramework, MetaController
@@ -139,7 +140,7 @@ airbornehrs/
 
 * [**Implementation Guide**](https://www.google.com/search?q=IMPLEMENTATION_GUIDE.md "null")**:** Deep dive into the architecture and design patterns.
 * [**Ethics & Limitations**](https://www.google.com/search?q=ETHICS.md "null")**:** Guidelines for the responsible use of self-modifying systems.
-* [**Experiments**](https://www.google.com/search?q=experiments/README.md "null")**:** Reproducible scripts and configuration files.
+* [**Experiments**](https://www.google.com/search?q=experiments/OLD/README.md "null")**:** Reproducible scripts and configuration files.
 
 ## 🤝 Contributing
 

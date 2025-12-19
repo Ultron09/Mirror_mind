@@ -32,8 +32,8 @@ def __getattr__(name):
         from .core import AdaptiveFrameworkConfig
         return AdaptiveFrameworkConfig
     elif name == 'IntrospectionModule':
-        from .core import IntrospectionModule
-        return IntrospectionModule
+        from .core import IntrospectionEngine
+        return IntrospectionEngine
     elif name == 'EWCHandler':
         from .ewc import EWCHandler  # Change to .ewc if you created ewc.py
         return EWCHandler
@@ -66,7 +66,7 @@ def __getattr__(name):
 __all__ = [
     'AdaptiveFramework',
     'AdaptiveFrameworkConfig',
-    'IntrospectionModule',
+    'IntrospectionEngine',
     'PerformanceMonitor',
     'EWCHandler',
     'MetaController',
