@@ -286,14 +286,15 @@ class AdaptiveFramework(nn.Module):
         self.feedback_buffer = FeedbackBuffer(config, self.device)
         self.ewc = EWCHandler(self.model, ewc_lambda=0.4)
         
-        # 3. The "Meta-Controller" (Reptile Optimizer)
+       
+        
+        self.optimizer = AdamW(self.model.parameters(), lr=config.learning_rate)
+         # 3. The "Meta-Controller" (Reptile Optimizer)
         # FIX A: Initialize MetaController for Reptile integration
         self.meta_controller = MetaController(self, MetaControllerConfig(
             use_reptile=True,
             reptile_update_interval=5
         ))
-        
-        self.optimizer = AdamW(self.model.parameters(), lr=config.learning_rate)
         
         self.meta_optimizer = AdamW(self.introspection_engine.parameters(), 
                                    lr=config.meta_learning_rate,

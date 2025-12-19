@@ -1,12 +1,8 @@
 """
-MirrorMind Enterprise Dashboard - EXTREME EDITION (V3.1)
-========================================================
+MirrorMind Enterprise Dashboard - EXTREME EDITION (V3.2.1 Sync)
+===============================================================
 A production-grade interface for Adaptive Meta-Learning.
-
-UPGRADES (V3.1):
-- 🔄 API SYNC: Uses updated ProductionAdapter.predict() for thread-safe updates.
-- 🧠 MODEL: GPT-2 Medium (355M) with auto-regressive plasticity.
-- 🔬 VISUALS: Integrated 3D Neural Topology Scanner.
+Updated for AirborneHRS V6.1 Compatibility.
 """
 
 import os
@@ -15,7 +11,6 @@ import time
 import torch
 import torch.nn as nn
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 import streamlit as st
@@ -31,8 +26,7 @@ from airbornehrs import (
     AdaptiveFramework, 
     AdaptiveFrameworkConfig, 
     ProductionAdapter, 
-    InferenceMode,
-    MetaController
+    InferenceMode
 )
 
 # ==================== 1. SYSTEM CONFIGURATION ====================
@@ -44,22 +38,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("""
-<style>
-    .stMetric { background-color: #1E1E1E; padding: 15px; border-radius: 10px; border: 1px solid #333; }
-    .status-card { padding: 20px; border-radius: 10px; text-align: center; font-weight: bold; }
-    .status-healthy { background-color: #1b5e20; color: #a5d6a7; }
-    .status-warning { background-color: #f57f17; color: #fff9c4; }
-    .status-critical { background-color: #b71c1c; color: #ffcdd2; }
-</style>
-""", unsafe_allow_html=True)
-
 # ==================== 2. ADAPTIVE MODEL WRAPPER ====================
 
 class AdaptiveModelWrapper(nn.Module):
     """
     Wraps HuggingFace models for introspection.
-    Automatically detects architecture to find the last transformer block.
     """
     def __init__(self, model_name='gpt2-medium', embed_dim=256):
         super().__init__()
@@ -88,20 +71,16 @@ class AdaptiveModelWrapper(nn.Module):
             nn.Linear(128, 1)
         )
         
-    def forward(self, input_ids, return_internals=False):
+    def forward(self, input_ids, **kwargs):
+        # NOTE: AdaptiveFramework calls this. Return format must be handled carefully.
         outputs = self.backbone(input_ids, output_hidden_states=True)
         hidden_states = outputs.hidden_states[-1] 
-        output = self.projection(hidden_states)
+        output_proj = self.projection(hidden_states)
         log_var = self.uncertainty_head(hidden_states)
         
-        if return_internals:
-            internals = {
-                'embeddings': hidden_states,
-                'logits': outputs.logits,
-                'introspection': log_var
-            }
-            return output, log_var, internals
-        return output, log_var
+        # We return the projected output for the framework to use in loss
+        # The framework's own IntrospectionEngine will also run parallel to this.
+        return output_proj, log_var
     
     def generate_text(self, input_ids, max_new_tokens=50):
         with torch.no_grad():
@@ -117,21 +96,13 @@ class AdaptiveModelWrapper(nn.Module):
 
 class GPTAdaptiveFramework(AdaptiveFramework):
     def __init__(self, config, device=None, model_name='gpt2-medium'):
-        if device is None:
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.device = device
-        self.config = config
-        self.model = AdaptiveModelWrapper(model_name, config.model_dim).to(device)
+        # 1. Initialize the Base Model
+        model = AdaptiveModelWrapper(model_name, config.model_dim)
         
-        # Initialize Core Components
-        from airbornehrs.core import PerformanceMonitor, FeedbackBuffer
-        self.monitor = PerformanceMonitor(self.model, config, device)
-        self.feedback_buffer = FeedbackBuffer(config, device)
+        # 2. Call Super (Initializes Optimizer, MetaController, etc.)
+        super().__init__(model, config, device)
         
-        trainable_params = filter(lambda p: p.requires_grad, self.model.parameters())
-        self.optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
-        
-        self.step_count = 0
+        self.model_name = model_name
 
     def get_tokenizer(self):
         return self.model.tokenizer
@@ -145,13 +116,16 @@ def load_system():
     config = AdaptiveFrameworkConfig(
         model_dim=256,
         num_layers=6,
-        learning_rate=5e-5, # Goldilocks zone
-        evaluation_frequency=5
+        learning_rate=5e-5, 
+        evaluation_frequency=5,
+        device=str(device),
+        compile_model=False # Disable compile for Streamlit stability
     )
     
     framework = GPTAdaptiveFramework(config, device=device, model_name='gpt2-medium')
     
     # Initialize Adapter with ONLINE learning enabled
+    # This enables the Reptile MetaController
     adapter = ProductionAdapter(framework, inference_mode=InferenceMode.ONLINE, enable_meta_learning=True)
     
     return adapter, framework.get_tokenizer()
@@ -181,37 +155,39 @@ def process_interaction(prompt):
         response = f"[Error: {str(e)}]"
 
     # 3. Snapshot Weights for 3D Viz
-    before_weights = {n: p.clone() for n, p in adapter.framework.model.named_parameters() if p.requires_grad and "weight" in n}
+    before_weights = {n: p.clone() for n, p in adapter.framework.model.named_parameters() if p.requires_grad}
 
     # 4. Online Learning Step (The Magic)
-    # We teach the model to better understand the PROMPT it just received.
-    # This uses the thread-safe `predict(update=True)` API.
+    metrics = {}
     try:
-        # Create a self-supervised target (Next Token Prediction style)
-        # Note: In a real app, you might train on (Prompt + Corrected Response)
+        # Self-supervised target: Predict next tokens based on current understanding
+        # Note: We use the adapter to ensure thread safety
         with torch.no_grad():
             target_output, _ = adapter.framework.model(input_ids)
-            target = target_output.detach() # Treat current understanding as target for stability, or external label
+            target = target_output.detach()
 
-        # Trigger the update
+        # Trigger update (This calls MetaController.adapt -> Reptile)
         adapter.predict(input_ids, update=True, target=target)
         
-        # Fetch updated metrics
         metrics = adapter.get_metrics()
         
     except Exception as e:
         print(f"Learning step failed: {e}")
-        metrics = {}
 
     # 5. Calculate Plasticity
     layer_changes = {}
     total_change = 0.0
-    for name, old_p in before_weights.items():
-        new_p = dict(adapter.framework.model.named_parameters())[name]
-        diff = (new_p - old_p).norm().item()
-        short_name = name.split('.')[-2] if len(name.split('.')) > 1 else name
-        layer_changes[short_name] = layer_changes.get(short_name, 0.0) + diff
-        total_change += diff
+    
+    # Only calculate if we have weights to compare
+    if before_weights:
+        current_weights = dict(adapter.framework.model.named_parameters())
+        for name, old_p in before_weights.items():
+            if name in current_weights:
+                new_p = current_weights[name]
+                diff = (new_p - old_p).norm().item()
+                short_name = name.split('.')[-2] if len(name.split('.')) > 1 else name
+                layer_changes[short_name] = layer_changes.get(short_name, 0.0) + diff
+                total_change += diff
 
     # 6. Update History
     st.session_state.latest_layer_changes = layer_changes
@@ -222,7 +198,7 @@ def process_interaction(prompt):
         'Loss': metrics.get('loss', 0.0),
         'Uncertainty': abs(metrics.get('uncertainty_mean', 0.0)),
         'Latency': latency,
-        'LearningRate': metrics.get('current_lr', 0.0),
+        'LearningRate': metrics.get('learning_rate', metrics.get('current_lr', 0.0)),
         'Plasticity': total_change
     }
     st.session_state.history = pd.concat([st.session_state.history, pd.DataFrame([new_data])], ignore_index=True)
@@ -272,10 +248,15 @@ def main():
         st.title("System Monitor")
         if not st.session_state.history.empty:
             last = st.session_state.history.iloc[-1]
-            st.metric("Current Plasticity", f"{last['Plasticity']:.2e}")
-            st.metric("Meta-Learning Rate", f"{last['LearningRate']:.2e}")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Plasticity", f"{last['Plasticity']:.2e}")
+            c2.metric("Adaptation Rate", f"{last['LearningRate']:.2e}")
+            c3.metric("Latency", f"{last['Latency']:.0f}ms")
+            
             if 'latest_layer_changes' in st.session_state:
                 st.plotly_chart(plot_3d_brain(st.session_state.latest_layer_changes))
+            
+            st.subheader("Training Dynamics")
             st.line_chart(st.session_state.history.set_index('Timestamp')[['Loss', 'Uncertainty']])
 
 if __name__ == "__main__":

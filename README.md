@@ -1,164 +1,251 @@
-﻿
-# 🧠 MirrorMind (`airbornehrs`)
+﻿# 🧪 MirrorMind Lab Framework
 
-**A production-ready adaptive meta-learning framework for continuous self-improvement.**
+### Internal Research System for Continuous Adaptive Intelligence
 
-`airbornehrs` (MirrorMind) is a lightweight PyTorch framework that turns standard deep learning models into self-improving systems. It implements an **"Optimization Cycle"** where the model not only learns a task but also introspects on its internal state, estimates uncertainty, and dynamically adjusts its own learning strategy (learning rate, curriculum, and weight adaptation) in real-time.
+**Framework Codename:** MirrorMind
+**Release Line:** v6.x (Still Series)
+**Maintained by:** AirborneHRS Research Lab
+**Lead Author:** Suryaansh Prithvijit Singh
 
-## 🎯 Core Philosophy
+<p align="center">
+  <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExM25uN3JsNXpvejc0a3B3NXBucGU4NGd2eWJlYTBwc2xqdWdpejcyNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/foecxPebqfDx5gxQCU/giphy.gif" width="760"/>
+</p>
 
-Traditional training is static. MirrorMind implements a **Stabilizer System** that wraps your model, acting as a meta-controller to guide convergence and efficiency.
+> *This repository documents a living system, not a frozen model.*
 
-### Research Terminology
+---
 
-To maintain scientific rigor, we map high-level cognitive concepts to their algorithmic implementations:
+## 0. Lab Charter
 
-| Concept                    | Algorithmic Implementation                                                 |
-| -------------------------- | -------------------------------------------------------------------------- |
-| **Introspection**    | Recursive State Monitoring & Internal Activation Analysis                  |
-| **Self-Awareness**   | Performance Calibration & Logit Entropy Estimation                         |
-| **The "Stabilizer"** | Meta-Controller with Dynamic LR Scheduling                                 |
-| **Curriculum**       | Adaptive Difficulty Scaling based on Loss Trajectory                       |
-| **The Loop**         | The Optimization Cycle (Forward$\to$Introspect$\to$Adapt$\to$Update) |
+MirrorMind is developed under a **lab-first philosophy**:
 
-## 🚀 Quick Start
+* No static checkpoints as final artifacts
+* No single-task assumption
+* No separation between inference and learning
 
-### Installation
+The objective is to study and deploy **systems that remain adaptive after deployment** while preserving stability, memory, and interpretability.
 
-```
-pip install airbornehrs
-```
+---
 
-Or install from source for development:
+## 1. Research Questions
 
-```
-git clone [https://github.com/Ultron09/Mirror_mind.git](https://github.com/Ultron09/Mirror_mind.git)
-cd Mirror_mind
-pip install -e .
-```
+<p align="center">
+  <img src="https://media.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif" width="640"/>
+</p>
 
-### 30-Second Usage
+MirrorMind is designed to answer the following questions:
 
-Wrap your existing model with adaptive meta-learning:
+1. Can a neural network *safely learn online* without catastrophic forgetting?
+2. Can internal activation statistics predict failure before loss divergence?
+3. Can meta-learning stabilize continual adaptation in non-stationary environments?
+4. Can memory importance be estimated and enforced automatically?
 
-```
-import torch
-import torch.nn as nn
-from airbornehrs import AdaptiveFramework, MetaController
+---
 
-# 1. Your existing model
-model = nn.Linear(128, 128)
+## 2. System Overview
 
-# 2. Wrap with adaptive meta-learning
-framework = AdaptiveFramework(model, model_dim=128)
-controller = MetaController(framework)
+<p align="center">
+  <img src="https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif" width="720"/>
+</p>
 
-# 3. In your training loop:
-for epoch in range(10):
-    output, uncertainty = framework(X)
-    loss = criterion(output, y)
-    loss.backward()
-  
-    # Adaptive optimization
-    controller.adapt(loss=loss.item())
-    optimizer.step()
-    optimizer.zero_grad()
-```
+MirrorMind is a **meta-wrapper** around any `torch.nn.Module`.
 
-## 📦 Architecture Components
+It injects four orthogonal control loops:
 
-For custom integration into existing pipelines, `airbornehrs` provides three modular layers:
+1. **Task Loop** — Standard forward/backward pass
+2. **Introspection Loop** — Internal state monitoring
+3. **Meta Loop** — Reptile-based slow weight updates
+4. **Memory Loop** — Elastic consolidation via Fisher information
 
-### 1. `AdaptiveFramework` (The Base)
+These loops operate concurrently but independently.
 
-Wraps your standard PyTorch model to add introspection hooks. It calculates layer importance, tracks gradient health, and manages the experience replay buffer.
+---
+
+## 2.1 Global System Diagram — Full Adaptive Stack
 
 ```
-from airbornehrs import AdaptiveFramework, AdaptiveFrameworkConfig
+        ┌──────────────────────────────┐
+        │     Environment / Stream     │
+        │   (Non‑stationary Reality)   │
+        └──────────────┬───────────────┘
+                       │
+                       ▼
+        ┌──────────────────────────────┐
+        │        Base Neural Model     │
+        │     f(x; θ)  — Core Net      │
+        └──────────────┬───────────────┘
+                       │
+                       ▼
+        ┌──────────────────────────────┐
+        │         Predictions          │
+        └──────────────────────────────┘
 
-config = AdaptiveFrameworkConfig(model_dim=128, num_layers=4)
-framework = AdaptiveFramework(config)
-
-# Returns output AND uncertainty estimates (logit entropy)
-output, uncertainty = framework.forward(input_tensor)
+        ▲                ▲                ▲
+        │                │                │
+┌───────┴────────┐ ┌─────┴────────┐ ┌────┴────────────┐
+│ Introspection   │ │ Meta Control │ │ Memory Guard    │
+│ Engine (RL)     │ │ (Reptile)    │ │ (EWC / Fisher) │
+│ Plasticity Ctrl │ │ Slow Weights │ │ Parameter Lock │
+└───────┬─────────┘ └─────┬────────┘ └────┬────────────┘
+        │                  │               │
+        └──────────────────┴───────────────┘
+                       │
+                Safe Weight Modulation
 ```
 
-### 2. `MetaController` (The Adaptation Layer)
+---
 
-Orchestrates the "learning to learn" process. It analyzes gradient norms and loss landscapes to adjust hyperparameters (like Learning Rate and Regularization) on the fly using MAML-style optimization.
-
-```
-from airbornehrs import MetaController
-
-controller = MetaController(framework)
-
-# In your training loop:
-adaptation_metrics = controller.adapt(
-    loss=current_loss,
-    gradients=framework.get_gradients(),
-    performance_metrics={'loss_improvement': 0.01}
-)
-# Automatically adjusts LR and curriculum difficulty based on feedback
-```
-
-### 3. `ProductionAdapter` (Deployment)
-
-A simplified interface for inference that supports  **Online Learning** . It allows the model to continue learning from live data streams in production with minimal overhead.
+## 3. Introspection Subsystem — Closed Control Loop
 
 ```
-from airbornehrs import ProductionAdapter, InferenceMode
-
-# Load a checkpoint in ONLINE mode
-adapter = ProductionAdapter.load_checkpoint(
-    "model.pt", 
-    inference_mode=InferenceMode.ONLINE
-)
-
-# Predict and learn from the result instantly
-prediction = adapter.predict(live_data, update=True, target=ground_truth)
+        Layer Activations
+     (mean, variance, drift)
+                 │
+                 ▼
+      ┌────────────────────────┐
+      │   State Aggregator     │
+      │  (Global Telemetry)   │
+      └───────────┬───────────┘
+                  ▼
+      ┌────────────────────────┐
+      │  Policy Network π(φ)   │
+      │   (REINFORCE / RL)     │
+      └───────────┬───────────┘
+                  ▼
+      ┌────────────────────────┐
+      │  Scale / Shift Actions │
+      │  (Affine Modulators)  │
+      └───────────┬───────────┘
+                  ▼
+          Controlled Plasticity
+            (Weight Editing)
 ```
 
-## 📊 Features & Capabilities
+---
 
-* **Recursive State Monitoring:** Analyzes internal activations to determine which layers are contributing most effectively to the task.
-* **MAML-Style Meta-Learning:** Implements Inner/Outer loop optimization to adapt to new tasks quickly with fewer samples.
-* **Dynamic Curriculum:** Automatically scales task difficulty (noise injection, complexity) based on the model's loss trajectory.
-* **Gradient Health Checks:** Detects exploding/vanishing gradients and auto-corrects learning rates before training diverges.
-* **HTML Dashboard:** Built-in visualization tools (`Dashboard.py`) to track learning efficiency, entropy, and adaptation triggers.
-
-## 📂 Project Structure
+## 4. Meta‑Learning Subsystem — Fast vs Slow Weights (Reptile)
 
 ```
-airbornehrs/
-├── __init__.py             # Public API & lazy imports
-├── core.py                 # AdaptiveFramework & IntrospectionModule
-├── meta_controller.py      # MAML, GradientAnalyzer, Scheduler
-└── production.py           # Inference & Online Learning Adapter
+            θ_slow  (Long‑Term Memory)
+                     │
+                     ▼
+          ┌────────────────────────┐
+          │   Inner Loop (SGD)     │
+          │  k steps — Fast Adapt  │
+          └───────────┬───────────┘
+                      ▼
+              θ_fast (Batch‑Specific)
+                      │
+        ε · (θ_fast − θ_slow)
+                      │
+                      ▼
+            θ_slow ← Meta Update
+
+        Effect: Low‑Pass Filter on Learning
 ```
 
-## 📜 Documentation & Ethics
+---
 
-* [**Implementation Guide**](https://www.google.com/search?q=IMPLEMENTATION_GUIDE.md "null")**:** Deep dive into the architecture and design patterns.
-* [**Ethics & Limitations**](https://www.google.com/search?q=ETHICS.md "null")**:** Guidelines for the responsible use of self-modifying systems.
-* [**Experiments**](https://www.google.com/search?q=experiments/OLD/README.md "null")**:** Reproducible scripts and configuration files.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please ensure any PRs regarding "consciousness" or "reasoning" are grounded in the algorithmic definitions provided in the `__init__.py` terminology mapping.
-
-## Citation
-
-If you use `airbornehrs` in your research, please cite:
+## 5. Memory Consolidation — Surprise‑Driven EWC Pipeline
 
 ```
-@software{airbornehrs2025,
-  title = {airbornehrs: Production-Ready Adaptive Meta-Learning Framework},
-  author = {AirborneHRS Contributors},
-  year = {2025},
-  url = {[https://github.com/Ultron09/Mirror_mind](https://github.com/Ultron09/Mirror_mind)}
+              Task Loss L_t
+                     │
+                     ▼
+          ┌────────────────────────┐
+          │  Statistical Monitor   │
+          │   (μ, σ, Z‑Score)      │
+          └───────────┬───────────┘
+                Z > 3σ│
+                     ▼
+          ┌────────────────────────┐
+          │ Fisher Information     │
+          │  Estimator (Diagonal) │
+          └───────────┬───────────┘
+                     ▼
+          ┌────────────────────────┐
+          │ Parameter Importance   │
+          │     F_i Values         │
+          └───────────┬───────────┘
+                     ▼
+             Elastic Weight Locks
+      (High F_i → Rigid, Low F_i → Plastic)
+```
+
+---
+
+## 6. Experimental Protocol
+
+<p align="center">
+  <img src="https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExazk3bGVhc3d5MHoyMGtucjhoN3N6b3RxbzVoZDJhM2J1engzZmJucCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/1fM9ePvlVcqZ2/giphy.gif" width="620"/>
+</p>
+
+Recommended lab experiments:
+
+* Synthetic domain shifts
+* Noise injection curricula
+* Delayed feedback learning
+* Continual task streams
+
+All experiments should log:
+
+* Surprise Z-score
+* Weight adaptation magnitude
+* Uncertainty estimates
+
+---
+
+## 7. Lab Metrics (Primary)
+
+| Metric              | Interpretation                  |
+| ------------------- | ------------------------------- |
+| `surprise_z_score`  | OOD / paradigm shift indicator  |
+| `weight_adaptation` | Degree of internal intervention |
+| `uncertainty_mean`  | Model self-awareness            |
+
+---
+
+## 8. Reproducibility Notes
+
+<p align="center">
+  <img src="https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExdzJscjN6eTVlYjZtc3M5Z29qcHo3bDF6Z3AwOWh2Y2x4NDd1bG81NCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/tyttpHbo0Gr1uWinm6c/giphy.gif" width="520"/>
+</p>
+
+* Deterministic seeds supported
+* Fisher matrices cached per task
+* Meta-updates logged explicitly
+
+MirrorMind prioritizes **mechanistic clarity** over raw benchmark chasing.
+
+---
+
+## 9. Lab Ethos
+
+<p align="center">
+  <img src="https://media.giphy.com/media/l0MYEqEzwMWFCg8rm/giphy.gif" width="560"/>
+</p>
+
+> *We do not train models. We grow systems.*
+
+MirrorMind is a step toward **persistent artificial intelligence**—systems that remain aligned with reality as reality changes.
+
+---
+
+## 10. Citation
+
+```bibtex
+@software{airbornehrs2025_lab,
+  title   = {MirrorMind: A Lab Framework for Continuous Adaptive Intelligence},
+  author  = {Singh, Suryaansh Prithvijit},
+  year    = {2025},
+  version = {6.1},
+  url     = {https://github.com/Ultron09/Mirror_mind}
 }
 ```
 
-**License:** MIT
+---
 
-**Author : Suryaansh Prithvijit Singh**
+<p align="center">
+  <strong>AirborneHRS Research Lab</strong><br/>
+  <em>Adaptive intelligence is a process, not a product.</em>
+</p>
