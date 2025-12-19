@@ -11,5 +11,6 @@ seaborn
 streamlit
 pandas
 plotly
+airbornehrs==0.2.4
 # NOTE: If you require GPU-enabled PyTorch builds, install an appropriate
 # wheel for your CUDA version following instructions at https://pytorch.org

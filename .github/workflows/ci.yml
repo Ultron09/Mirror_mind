@@ -24,15 +24,10 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install -e .  # Install airbornehrs in editable mode
           
-      - name: 🌍 Run Endgame (Production Sim)
+      - name: 🌍 Run Example
         # This verifies Introspection and Recovery from Crisis
         run: |
-          python experiments/run_endgame.py
-          
-      - name: 🌍 Run Multi -Model Compatibilty Test
-        # This verifies Introspection and Recovery from Crisis
-        run: |
-          python experiments/run_multi_model.py
+          python examples/production_example.py
           
       - name: 📊 Upload Test Results
         # Save the generated graphs as artifacts so you can download them from GitHub
