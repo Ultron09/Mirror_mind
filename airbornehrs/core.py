@@ -387,7 +387,7 @@ class AdaptiveFramework(nn.Module):
             
         return output, log_var, affine_modifiers
 
-    def train_step(self, input_data, target_data):
+    def train_step(self, input_data, target_data, enable_dream: bool = True):
         self.model.train()
         self.optimizer.zero_grad(set_to_none=True)
         self.meta_optimizer.zero_grad(set_to_none=True)
@@ -424,33 +424,24 @@ class AdaptiveFramework(nn.Module):
         trigger_ewc = False
         z_score = 0.0
 
-        # Only check for surprise if we have enough history to form a baseline
         if len(self.loss_history) > 20:
             hist_mean = np.mean(self.loss_history)
             hist_std = np.std(self.loss_history) + 1e-9
             z_score = (current_loss_val - hist_mean) / hist_std
             
-            # CRITICAL: If Z-Score > 3.0, we are in a new domain.
             if z_score > 3.0:
-                # Add a cooldown (e.g., 50 steps) so we don't re-lock constantly during a spike
                 last_consolidation = getattr(self, 'last_consolidation_step', 0)
                 if self.step_count > last_consolidation + 50:
                     trigger_ewc = True
                     self.last_consolidation_step = self.step_count
 
         if trigger_ewc:
-            # Lock memories from the BUFFER (representing the previous task)
-            # before we learn from this new "surprising" data.
             self.ewc.consolidate_from_buffer(self.feedback_buffer)
-            
-            # Clear history so the new high loss becomes the new normal baseline
             self.loss_history.clear() 
 
         # ==========================================================
 
-        # 4. Backward & Step (Main Model)
-        
-        # Apply EWC Penalty (if enabled by previous trigger or manually)
+        # 4. Backward & Step
         if self.ewc.is_enabled():
             loss += self.ewc.compute_penalty()
             
@@ -458,20 +449,14 @@ class AdaptiveFramework(nn.Module):
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
         self.optimizer.step()
         
-        # 5. RL Update (Introspection Engine)
-        
-        # Init baseline if empty
+        # 5. RL Update
         if self.reward_baseline == 0.0:
             self.reward_baseline = current_loss_val
-            
-        # Calculate Advantage
         advantage = self.reward_baseline - current_loss_val
         
-        # Z-Score Clamping for RL (Prevent exploding gradients on surprise)
         if abs(z_score) > 3.0:
              advantage = torch.clamp(torch.tensor(advantage), min=-1.0, max=1.0).item()
         
-        # Update Baseline
         self.reward_baseline = (1 - self.alpha) * self.reward_baseline + self.alpha * current_loss_val
         
         if len(self.meta_log_probs) > 0:
@@ -482,11 +467,10 @@ class AdaptiveFramework(nn.Module):
             self.meta_optimizer.step()
             self.meta_log_probs.clear()
         
-        # 6. Meta-Controller Adaptation (Reptile)
-        # This syncs the "Fast Weights" (current step) with "Slow Weights" (Anchor)
+        # 6. Meta-Controller Adaptation
         self.meta_controller.adapt(loss=current_loss_val)
         
-        # 7. Explicit Weight Editing (Direct Cortex Edit)
+        # 7. Explicit Weight Editing
         weight_adapt_mag = 0.0
         if self.step_count % self.config.evaluation_frequency == 0:
             avg_loss = np.mean(self.loss_history) if self.loss_history else loss.item()
@@ -501,20 +485,23 @@ class AdaptiveFramework(nn.Module):
                 activations=internals
             )
             
-        # 8. Checkpoints & Housekeeping
+        # 8. Checkpoints & History
         if self.step_count % self.config.checkpoint_frequency == 0:
             self.save_checkpoint(f"checkpoints/step_{self.step_count}.pt")
 
         self.loss_history.append(loss.item())
         self.feedback_buffer.add(input_data, pred, target_data, -loss.item(), loss.item())
         
-        # AUTOMATIC DREAMING (Experience Replay)
-        # Every 10 steps, replay 1 epoch of memories to lock them in.
+        # AUTOMATIC DREAMING (With Recursion Guard)
         replay_loss = 0.0
-        if self.step_count > 0 and self.step_count % 10 == 0:
+        # FIX: Check enable_dream before triggering replay
+        if enable_dream and self.step_count > 0 and self.step_count % 10 == 0:
              dream_metrics = self.learn_from_buffer(batch_size=16, num_epochs=1)
              replay_loss = dream_metrics.get('replay_loss', 0.0)
-        self.step_count += 1
+        
+        # FIX: Only increment step count if this is a "real" step
+        if enable_dream:
+            self.step_count += 1
         
         return {
             "loss": loss.item(),
@@ -527,18 +514,6 @@ class AdaptiveFramework(nn.Module):
     def learn_from_buffer(self, batch_size: int = 32, num_epochs: int = 1) -> Dict[str, float]:
         """
         Active Replay ("Dreaming"): Re-trains on past experiences to consolidate memory.
-        
-        This closes the loop by:
-        1. Sampling diverse memories from the FeedbackBuffer.
-        2. Re-running them through the full optimization cycle (Meta-Controller + EWC).
-        3. syncing the "Fast Weights" with long-term storage.
-        
-        Args:
-            batch_size (int): Number of memories to replay per step.
-            num_epochs (int): How many passes to make over the sampled memories.
-            
-        Returns:
-            Dict containing average loss during replay.
         """
         # 1. Safety Check: Do we have enough memories?
         if len(self.feedback_buffer.buffer) < batch_size:
@@ -555,22 +530,19 @@ class AdaptiveFramework(nn.Module):
         self.model.train()
         
         for epoch in range(num_epochs):
-            # Reservoir Sampling: Randomly pick experiences
-            # We use random.sample for diversity (breaking temporal correlations)
+            # Reservoir Sampling
             samples = random.sample(self.feedback_buffer.buffer, batch_size)
             
             # 3. Reconstruct Tensors & Move to Device
-            # We must detach to ensure we don't backprop into the buffer history
+            # FIX: Using torch.cat (as you correctly have) to handle variable sizes
             inputs = torch.cat([s.input_data for s in samples], dim=0).to(self.device)
             targets = torch.cat([s.target for s in samples], dim=0).to(self.device)
             
             # 4. The Sync Step: Call train_step()
-            # This is CRITICAL. By calling train_step instead of doing a manual backward pass,
-            # we force the replay to go through:
-            # - The Introspection Engine (is this memory surprising?)
-            # - The EWC Handler (does this violate previous constraints?)
-            # - The Meta-Controller (should we adjust LR?)
-            metrics = self.train_step(inputs, targets)
+            # CRITICAL FIX: We must pass enable_dream=False here.
+            # This prevents the dream from triggering *another* dream (Infinite Recursion).
+            metrics = self.train_step(inputs, targets, enable_dream=False)
+            
             replay_losses.append(metrics['loss'])
             
         avg_loss = np.mean(replay_losses) if replay_losses else 0.0
