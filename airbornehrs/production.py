@@ -77,26 +77,19 @@ class ProductionAdapter:
                 target: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Run inference on input data.
-        
-        Args:
-            input_data: Input tensor
-            update: If True, triggers online learning (requires target)
-            target: Ground truth for adaptation
-            
-        Returns:
-            Model prediction
         """
         # OPTIMIZATION: Use inference_mode when not updating
-        # This disables gradient graph construction, saving RAM and Compute.
         if not update:
             with torch.inference_mode():
-                output, _ = self.framework.forward(input_data)
+                # FIX: Unpack 3 values (output, uncertainty, modifiers)
+                # We use *args to ignore the extra returns safely
+                output, *extras = self.framework.forward(input_data)
             return output
         
-        # If updating, we do a standard forward pass first to get the prediction
-        # (We don't use this graph for training to keep logic clean)
+        # If updating, we do a standard forward pass first
         with torch.no_grad():
-             output, _ = self.framework.forward(input_data)
+             # FIX: Unpack 3 values here too
+             output, *extras = self.framework.forward(input_data)
         
         # Trigger Online Learning Logic
         if update and target is not None:
@@ -185,10 +178,17 @@ class ProductionAdapter:
     @classmethod
     def load_checkpoint(cls,
                        path: str,
+                       model: nn.Module,  # <--- NEW ARGUMENT REQUIRED
                        inference_mode: str = InferenceMode.STATIC,
                        device: Optional[str] = None) -> 'ProductionAdapter':
         """
         Robust checkpoint loading with state synchronization.
+        
+        Args:
+            path: Path to .pt file
+            model: FRESH instance of your base model architecture
+            inference_mode: Mode for the adapter
+            device: Target device
         """
         if device is None:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -196,7 +196,6 @@ class ProductionAdapter:
             device = torch.device(device)
             
         # 1. Load Checkpoint
-        # weights_only=False required for dataclass config
         checkpoint = torch.load(path, map_location=device, weights_only=False)
         
         # 2. Reconstruct Config
@@ -206,17 +205,20 @@ class ProductionAdapter:
             config = AdaptiveFrameworkConfig()
             
         # 3. Initialize Framework
-        framework = AdaptiveFramework(config, device=device)
+        # FIX: Pass the 'model' argument provided by the user
+        framework = AdaptiveFramework(model, config, device=device)
         
         # 4. Load Weights & Optimizer
-        # Handle compiled model prefix if necessary
         model_state = checkpoint['model_state']
+        
+        # Handle compiled model prefix if necessary
+        # If the saved state has "_orig_mod." prefix but current model doesn't (or vice versa)
         if hasattr(framework.model, '_orig_mod'):
-             # If current model is compiled but checkpoint wasn't (or vice versa), handle keys
-             # This is a basic check; stricter matching might be needed for mixed envs
-             pass 
-             
-        framework.model.load_state_dict(model_state)
+            # If current is compiled, we might need to adjust keys or load into _orig_mod
+             framework.model._orig_mod.load_state_dict(model_state)
+        else:
+             # Standard load
+             framework.model.load_state_dict(model_state)
         
         if 'optimizer_state' in checkpoint:
             framework.optimizer.load_state_dict(checkpoint['optimizer_state'])
@@ -227,7 +229,6 @@ class ProductionAdapter:
         adapter = cls(framework, inference_mode)
         
         # 6. CRITICAL: Sync Meta-Controller with Loaded Optimizer
-        # If we load a trained model, we must sync the LR scheduler
         if adapter.meta_controller:
             current_optim_lr = framework.optimizer.param_groups[0]['lr']
             adapter.meta_controller.lr_scheduler.current_lr = current_optim_lr

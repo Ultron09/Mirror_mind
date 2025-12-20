@@ -1,5 +1,5 @@
 """
-MirrorMind Enterprise Dashboard - EXTREME EDITION (V3.2.1 Sync)
+MirrorMind Enterprise Dashboard - EXTREME EDITION (V3.2.2 Sync)
 ===============================================================
 A production-grade interface for Adaptive Meta-Learning.
 Updated for AirborneHRS V6.1 Compatibility.
@@ -38,11 +38,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+st.markdown("""
+<style>
+    .stMetric { background-color: #1E1E1E; padding: 15px; border-radius: 10px; border: 1px solid #333; }
+</style>
+""", unsafe_allow_html=True)
+
 # ==================== 2. ADAPTIVE MODEL WRAPPER ====================
 
 class AdaptiveModelWrapper(nn.Module):
     """
-    Wraps HuggingFace models for introspection.
+    Wraps HuggingFace models.
+    Optimization: Removed redundant uncertainty head (Framework handles this).
     """
     def __init__(self, model_name='gpt2-medium', embed_dim=256):
         super().__init__()
@@ -65,22 +72,17 @@ class AdaptiveModelWrapper(nn.Module):
                 param.requires_grad = True
         
         self.projection = nn.Linear(self.hidden_dim, self.embed_dim)
-        self.uncertainty_head = nn.Sequential(
-            nn.Linear(self.hidden_dim, 128),
-            nn.GELU(),
-            nn.Linear(128, 1)
-        )
+        # Removed redundant uncertainty_head
         
     def forward(self, input_ids, **kwargs):
-        # NOTE: AdaptiveFramework calls this. Return format must be handled carefully.
+        # NOTE: AdaptiveFramework calls this.
         outputs = self.backbone(input_ids, output_hidden_states=True)
         hidden_states = outputs.hidden_states[-1] 
         output_proj = self.projection(hidden_states)
-        log_var = self.uncertainty_head(hidden_states)
         
-        # We return the projected output for the framework to use in loss
-        # The framework's own IntrospectionEngine will also run parallel to this.
-        return output_proj, log_var
+        # Return Tuple to match expected unpacking in existing scripts
+        # (output, auxiliary) -> auxiliary is ignored by Framework
+        return output_proj, None 
     
     def generate_text(self, input_ids, max_new_tokens=50):
         with torch.no_grad():
@@ -163,6 +165,7 @@ def process_interaction(prompt):
         # Self-supervised target: Predict next tokens based on current understanding
         # Note: We use the adapter to ensure thread safety
         with torch.no_grad():
+            # Unpack logic: (output, None)
             target_output, _ = adapter.framework.model(input_ids)
             target = target_output.detach()
 

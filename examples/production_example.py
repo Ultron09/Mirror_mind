@@ -91,10 +91,14 @@ def main():
     # ==========================================
     print("\n[PHASE 2] Deploying to Production...")
 
+    # FIX: Initialize a fresh architecture for production
+    production_model = SimpleBrain(input_dim=64, output_dim=64)
+
     # Load into Production Adapter
     # InferenceMode.ONLINE enables continuous learning (Reptile)
     adapter = ProductionAdapter.load_checkpoint(
         "my_model.pt",
+        model=production_model,  # <--- PASS THE MODEL HERE
         inference_mode=InferenceMode.ONLINE 
     )
     print("   ✅ Adapter loaded. Online Learning: ENABLED")

@@ -20,7 +20,7 @@ Quick start:
 
 """
 
-__version__ = "0.2.3"
+__version__ = "0.2.4.2"
 __author__ = "Suryaansh Prithvijit Singh"
 
 # Lazy imports to handle circular dependencies

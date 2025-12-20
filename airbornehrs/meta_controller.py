@@ -161,6 +161,9 @@ class DynamicLearningRateScheduler:
             param_group['lr'] = self.current_lr
             
         return self.current_lr
+    def get_lr(self) -> float:
+        """Return the current learning rate."""
+        return self.current_lr
 
 
 # ==================== CURRICULUM STRATEGY ====================
