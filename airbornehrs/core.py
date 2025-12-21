@@ -73,6 +73,17 @@ class AdaptiveFrameworkConfig:
     # Logging
     log_frequency: int = 50
     checkpoint_frequency: int = 500
+    # --- NEW: ROBUSTNESS ---
+    # If True, the model scales gradients based on "Surprise" (Loss magnitude)
+    enable_active_shield: bool = True 
+    
+    # Below this loss, the model considers itself "Correct" and refuses to change.
+    # We derived 0.08 from your Test 5 data trace.
+    active_shield_threshold: float = 0.08 
+    
+    # How aggressively the gate closes (Higher = sharper cutoff)
+    active_shield_slope: float = 50.0
+
     @classmethod
     def quick_start(cls):
         """Beginner-friendly CPU config"""
@@ -395,12 +406,11 @@ class AdaptiveFramework(nn.Module):
         # 1. Forward Pass
         output, log_var, affine_modifiers = self.forward(input_data)
         
-        # Handle Output Types
+        # Handle Output Types & Calculate Loss
         pred = output
         if hasattr(output, 'logits'): pred = output.logits
         elif isinstance(output, tuple): pred = output[0]
         
-        # 2. Loss Calculation
         if pred.shape == target_data.shape:
             mse = (pred - target_data) ** 2
             precision = torch.exp(-log_var)
@@ -411,7 +421,7 @@ class AdaptiveFramework(nn.Module):
              loss = torch.mean(0.5 * (log_var + ce_loss * precision))
         else:
              loss = F.mse_loss(pred.float(), target_data.float())
-             
+
         # 3. NaN Guard (Early Exit)
         if torch.isnan(loss) or torch.isinf(loss):
              if len(self.meta_log_probs) > 0: self.meta_log_probs.pop()
@@ -440,16 +450,53 @@ class AdaptiveFramework(nn.Module):
             self.loss_history.clear() 
 
         # ==========================================================
+        # 🛡️ ACTIVE SHIELD: The "Boredom" Gate (Plasticity Control)
+        # ==========================================================
+        plasticity = 1.0 # Default: Full Learning
+        
+        if self.config.enable_active_shield:
+            # Sigmoid Logic: 
+            # If Loss < Threshold -> Plasticity drops to 0
+            # If Loss > Threshold -> Plasticity rises to 1
+            delta = current_loss_val - self.config.active_shield_threshold
+            plasticity = torch.sigmoid(torch.tensor(delta * self.config.active_shield_slope)).item()
+            
+            # Optimization: If we barely care, don't waste compute on backward()
+            if plasticity < 0.05:
+                # Clear meta-history to prevent noise since we aren't stepping
+                if len(self.meta_log_probs) > 0: self.meta_log_probs.pop()
+                
+                # We return early, effectively "freezing" the model for this step
+                return {
+                    "loss": current_loss_val,
+                    "uncertainty": log_var.item(),
+                    "plasticity": 0.0, 
+                    "status": "shielded_skip",
+                    "weight_adaptation": 0.0,
+                    "surprise_z_score": float(z_score) if isinstance(z_score, (float, int)) else z_score.item()
+                }
+
+        # ==========================================================
 
         # 4. Backward & Step
         if self.ewc.is_enabled():
             loss += self.ewc.compute_penalty()
             
         loss.backward(retain_graph=True)
+        
+        # 5. Apply Active Shield to Gradients
+        # This scales the gradient magnitude based on how "surprised" we are.
+        # It handles the "Soft Transition" (Task 15 case) gracefully.
+        if plasticity < 0.99:
+            with torch.no_grad():
+                for param in self.model.parameters():
+                    if param.grad is not None:
+                        param.grad.mul_(plasticity)
+        
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
         self.optimizer.step()
         
-        # 5. RL Update
+        # 6. RL Update (Standard Logic)
         if self.reward_baseline == 0.0:
             self.reward_baseline = current_loss_val
         advantage = self.reward_baseline - current_loss_val
@@ -467,12 +514,13 @@ class AdaptiveFramework(nn.Module):
             self.meta_optimizer.step()
             self.meta_log_probs.clear()
         
-        # 6. Meta-Controller Adaptation
+        # 7. Meta-Controller Adaptation
         self.meta_controller.adapt(loss=current_loss_val)
         
-        # 7. Explicit Weight Editing
+        # 8. Explicit Weight Editing
         weight_adapt_mag = 0.0
         if self.step_count % self.config.evaluation_frequency == 0:
+            # ... (Existing weight editing logic) ...
             avg_loss = np.mean(self.loss_history) if self.loss_history else loss.item()
             internals = {
                 'affine_modifiers': affine_modifiers, 
@@ -485,21 +533,19 @@ class AdaptiveFramework(nn.Module):
                 activations=internals
             )
             
-        # 8. Checkpoints & History
+        # 9. Checkpoints & History
         if self.step_count % self.config.checkpoint_frequency == 0:
             self.save_checkpoint(f"checkpoints/step_{self.step_count}.pt")
 
         self.loss_history.append(loss.item())
         self.feedback_buffer.add(input_data, pred, target_data, -loss.item(), loss.item())
         
-        # AUTOMATIC DREAMING (With Recursion Guard)
+        # AUTOMATIC DREAMING
         replay_loss = 0.0
-        # FIX: Check enable_dream before triggering replay
         if enable_dream and self.step_count > 0 and self.step_count % 10 == 0:
              dream_metrics = self.learn_from_buffer(batch_size=16, num_epochs=1)
              replay_loss = dream_metrics.get('replay_loss', 0.0)
         
-        # FIX: Only increment step count if this is a "real" step
         if enable_dream:
             self.step_count += 1
         
@@ -508,6 +554,7 @@ class AdaptiveFramework(nn.Module):
             "replay_loss": replay_loss,
             "uncertainty_mean": log_var.item(),
             "weight_adaptation": weight_adapt_mag,
+            "plasticity": plasticity, # NEW METRIC
             "surprise_z_score": float(z_score) if isinstance(z_score, (float, int)) else z_score.item()
         }
     
@@ -583,6 +630,13 @@ class AdaptiveFramework(nn.Module):
             self.meta_optimizer.load_state_dict(ckpt['meta_optimizer'])
             
         self.step_count = ckpt.get('step_count', 0)
+        # 🚀 NEW: AUTO-TETHER
+        # If we have an EWC handler, lock the loaded weights immediately.
+        # This protects the "Pre-trained Brain" from instant forgetting.
+        if hasattr(self, 'ewc'):
+            self.ewc.lock_for_ttt(strength=500.0)
+            self.logger.info(f"🛡️ Safety Tether auto-engaged (Strength: 500.0) for {path}")
+            
         self.logger.info(f"Checkpoint loaded from {path}")
 
     def get_metrics(self) -> Dict[str, Any]:

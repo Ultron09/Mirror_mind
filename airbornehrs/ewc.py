@@ -81,3 +81,33 @@ class EWCHandler:
                 loss += (fisher * (param - opt_param).pow(2)).sum()
         
         return loss * (self.ewc_lambda / 2)
+    
+    # Insert this method inside the EWCHandler class in ewc.py
+
+    def lock_for_ttt(self, strength: float = 1000.0):
+        """
+        Rapidly locks current weights as the anchor for Test-Time Training (TTT).
+        Sets a uniform 'stiffness' (Fisher Information) for all parameters.
+        
+        Args:
+            strength: The stiffness of the tether. Higher = less forgetting.
+        """
+        self.logger.info(f"⚓ EWC: Tethering weights for TTT (Strength: {strength})...")
+        
+        # 1. Save current weights as the Anchor
+        self.opt_param_dict = {
+            n: p.clone().detach() 
+            for n, p in self.model.named_parameters() 
+            if p.requires_grad
+        }
+
+        # 2. Set Uniform Fisher Information (The Tether)
+        # Instead of calculating sensitivity from data, we assume ALL weights 
+        # are equally important to keep (Isotropic Gaussian Prior).
+        self.fisher_dict = {
+            n: torch.full_like(p, strength) 
+            for n, p in self.model.named_parameters() 
+            if p.requires_grad
+        }
+        
+        self.logger.info("🔒 EWC: Tether engaged.")

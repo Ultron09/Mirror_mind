@@ -137,18 +137,21 @@ class DynamicLearningRateScheduler:
         
         # 3. ADAPTIVE LOGIC (Relative, not Absolute)
         
-        # A. EXPLOSION DETECTED (Grads > 2 Sigma) -> CUT LR
-        if grad_z_score > 2.0:
-            # Panic brake: Reduce proportional to severity
-            reduction = 0.5 * (1.0 / grad_z_score) 
-            self.current_lr *= max(0.1, reduction)
-            
-        # B. SURPRISE DETECTED (Loss Spike > 1.5 Sigma) -> BOOST PLASTICITY
-        # This implies a new task or domain shift
-        elif loss_z_score > 1.5:
+        # 3. ADAPTIVE LOGIC (Relative, not Absolute)
+
+        # A. SURPRISE DETECTED (Loss Spike > 1.5 Sigma) -> BOOST PLASTICITY
+        # PRIORITY FIX: Check this FIRST. High loss validates high gradients.
+        if loss_z_score > 1.5:
             # Boost proportional to surprise
             boost = 1.0 + (loss_z_score * 0.1) 
             self.current_lr *= min(2.0, boost)
+
+        # B. EXPLOSION DETECTED (Grads > 2 Sigma) -> CUT LR
+        # Only brake if Gradients are high but Loss is STABLE (Numerical Instability)
+        elif grad_z_score > 2.0:
+            # Panic brake: Reduce proportional to severity
+            reduction = 0.5 * (1.0 / grad_z_score) 
+            self.current_lr *= max(0.1, reduction)
             
         # C. STAGNATION (Low Variance) -> CONVERGENCE DECAY
         elif abs(loss_z_score) < 0.1 and abs(grad_z_score) < 0.1:
