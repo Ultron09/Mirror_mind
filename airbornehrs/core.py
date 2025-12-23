@@ -720,6 +720,10 @@ class AdaptiveFramework(nn.Module):
             hist_std = np.std(self.loss_history) + 1e-9
             z_score = (current_mse_val - hist_mean) / hist_std
 
+        # Initialize consciousness signals (defaults if consciousness is disabled)
+        consciousness_urgency = 0.0
+        cons_importance = 1.0
+
         # B. MODE SELECTION (The Hierarchy)
         
         # 1. BOOTSTRAP: Always learn at start (Warmup)
@@ -786,6 +790,64 @@ class AdaptiveFramework(nn.Module):
                 criterion=getattr(self.config, 'consolidation_criterion', 'hybrid')
             )
             self.logger.debug(f"Consolidation check (NORMAL): {reason}")
+        
+        # --- CONSCIOUSNESS OBSERVATION (EARLY OVERRIDE) ---
+        # Call consciousness BEFORE consolidation action so urgency can override scheduler
+        try:
+            if getattr(self.config, 'enable_consciousness', False) and getattr(self, 'consciousness', None) is not None:
+                # Attempt to extract features for consciousness
+                features = None
+                try:
+                    if hasattr(self, 'telemetry_buffer'):
+                        features = self.telemetry_buffer.detach() if hasattr(self.telemetry_buffer, 'detach') else None
+                except Exception:
+                    features = None
+                
+                # Observe this example (updates internal gap/surprise stats)
+                try:
+                    cons_metrics = self.consciousness.observe(input_data, target_data, pred, features=features)
+                except Exception as e:
+                    self.logger.debug(f"Consciousness observe failed: {e}")
+                    cons_metrics = {'confidence': 0.5, 'uncertainty': 0.5, 'surprise': 0.0, 'importance': 1.0}
+                
+                # Extract importance signal for replay prioritization
+                cons_importance = cons_metrics.get('importance', 1.0)
+                
+                # Update self-awareness monitor if present
+                try:
+                    if getattr(self, 'self_awareness', None) is not None:
+                        self.self_awareness.update(
+                            confidence=cons_metrics.get('confidence', 0.5),
+                            accuracy=1.0 - current_mse_val if current_mse_val < 1.0 else 0.0,
+                            learning_gap=self.consciousness.get_knowledge_state().get('learning_gap', 0.5),
+                            surprise=cons_metrics.get('surprise', 0.0)
+                        )
+                except Exception:
+                    pass
+                
+                # Get learning priority to influence consolidation and replay
+                try:
+                    priority = self.consciousness.get_learning_priority()
+                    consciousness_urgency = priority.get('consolidation_urgency', 0.0)
+                    
+                    # Boost prioritized replay sampling temperature or weights
+                    if getattr(self, 'prioritized_buffer', None) is not None:
+                        try:
+                            # Adjust temperature toward exploitation when priority high
+                            t = max(0.1, min(1.0, getattr(self.config, 'replay_priority_temperature', 0.6) * (1.0 - priority.get('replay_priority', 0.5))))
+                            self.prioritized_buffer.temperature = t
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+        except Exception:
+            # Consciousness is best-effort; do not break training
+            pass
+        
+        # Override consolidation trigger if consciousness urgency is high
+        if consciousness_urgency > 0.8:
+            trigger_consolidation = True
+            self.logger.info(f"🧠 Consciousness Override: Consolidation urgency={consciousness_urgency:.2f}")
             
             block_reptile = False
             
@@ -1049,17 +1111,20 @@ class AdaptiveFramework(nn.Module):
 
         # Store MSE in history
         self.loss_history.append(current_mse_val)
-        
+
         # Add to regular feedback buffer
         self.feedback_buffer.add(input_data, pred, target_data, -current_mse_val, current_mse_val)
         
         # Add to prioritized buffer if enabled (SOTA V7.0)
+        # Include consciousness-derived importance score if available
         if hasattr(self, 'prioritized_buffer') and self.prioritized_buffer is not None:
             try:
                 # Get the last snapshot from feedback buffer (just added)
                 snapshot = self.feedback_buffer.buffer[-1] if self.feedback_buffer.buffer else None
                 if snapshot is not None:
-                    self.prioritized_buffer.add(snapshot, z_score=z_score)
+                    # Combine z-score surprise with consciousness importance
+                    combined_importance = (abs(z_score) + cons_importance) / 2.0
+                    self.prioritized_buffer.add(snapshot, z_score=z_score, importance=combined_importance)
             except Exception as e:
                 self.logger.debug(f"Failed to add to prioritized buffer: {e}")
         

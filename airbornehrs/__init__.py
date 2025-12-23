@@ -77,6 +77,18 @@ def __getattr__(name):
     elif name == 'SIHandler':
         from .ewc import SIHandler
         return SIHandler
+    elif name == 'ConsciousnessCore':
+        from .consciousness import ConsciousnessCore
+        return ConsciousnessCore
+    elif name == 'AttentionMechanism':
+        from .consciousness import AttentionMechanism
+        return AttentionMechanism
+    elif name == 'IntrinisicMotivation':
+        from .consciousness import IntrinisicMotivation
+        return IntrinisicMotivation
+    elif name == 'SelfAwarenessMonitor':
+        from .consciousness import SelfAwarenessMonitor
+        return SelfAwarenessMonitor
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
@@ -97,5 +109,10 @@ __all__ = [
     'UnifiedMemoryHandler',
     'PrioritizedReplayBuffer',
     'AdaptiveRegularization',
-    'DynamicConsolidationScheduler'
+    'DynamicConsolidationScheduler',
+    # V7.0 Consciousness Layer
+    'ConsciousnessCore',
+    'AttentionMechanism',
+    'IntrinisicMotivation',
+    'SelfAwarenessMonitor'
 ]
