@@ -261,8 +261,11 @@ class ReptileOptimizer:
                     
                     new_state_dict[name] = new_param
         
-        # Apply updated weights to model
-        self.model.load_state_dict(new_state_dict)
+        # Apply updated weights to model (in-place copy to avoid strict partial loads)
+        with torch.no_grad():
+            for name, param in self.model.named_parameters():
+                if name in new_state_dict:
+                    param.data.copy_(new_state_dict[name])
         
         # Update Anchor for next cycle
         self.anchor_weights = self._clone_weights()

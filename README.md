@@ -219,6 +219,32 @@ MirrorMind prioritizes **mechanistic clarity** over raw benchmark chasing.
 
 ---
 
+## Quick Start (One-liner)
+
+- Run automatic sweep + Phase7 full evaluation (auto-picks best config):
+
+```powershell
+# from repo root using the project's venv
+& "test_env\Scripts\python.exe" run_mm.py
+# or via module run
+& "test_env\Scripts\python.exe" -m airbornehrs
+```
+
+- Run sweep only:
+
+```powershell
+& "test_env\Scripts\python.exe" run_mm.py --mode sweep
+```
+
+- Run Phase7 with explicit config:
+
+```powershell
+& "test_env\Scripts\python.exe" run_mm.py --mode phase7 --config '{"adapter_lr":0.005,"ewc_lambda":1.0,"noise_sigma":0.02}'
+```
+
+These one-liners call the CLI helpers in `airbornehrs.cli` and will save sweep artifacts
+to `sweep_results.json` and checkpoints to `checkpoints/` for reproducibility.
+
 ## 9. Lab Ethos
 
 <p align="center">

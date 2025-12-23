@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "airbornehrs"
-version = "0.2.5.4"
+version = "0.2.5.7"
 description = "Production-grade adaptive meta-learning framework for continual model improvement. Implements research DOI: 10.5281/zenodo.17839490."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -68,6 +68,10 @@ Issues = "https://github.com/Ultron09/Mirror_mind/issues"
 
 [tool.setuptools]
 packages = ["airbornehrs"]
+
+[project.scripts]
+# `mm` becomes available after `pip install -e .` or packaging
+mm = "airbornehrs.cli:main"
 
 [tool.setuptools.package-data]
 airbornehrs = ["*.json", "*.yaml", "*.csv"] 

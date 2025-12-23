@@ -20,7 +20,7 @@ Quick start:
 
 """
 
-__version__ = "0.2.5.3"
+__version__ = "0.2.5.6"
 __license__ = "MIT"
 __author__ = "Suryaansh Prithvijit Singh"
 
@@ -62,6 +62,21 @@ def __getattr__(name):
     elif name == 'InferenceMode':
         from .production import InferenceMode
         return InferenceMode
+    elif name == 'UnifiedMemoryHandler':
+        from .memory import UnifiedMemoryHandler
+        return UnifiedMemoryHandler
+    elif name == 'PrioritizedReplayBuffer':
+        from .memory import PrioritizedReplayBuffer
+        return PrioritizedReplayBuffer
+    elif name == 'AdaptiveRegularization':
+        from .memory import AdaptiveRegularization
+        return AdaptiveRegularization
+    elif name == 'DynamicConsolidationScheduler':
+        from .memory import DynamicConsolidationScheduler
+        return DynamicConsolidationScheduler
+    elif name == 'SIHandler':
+        from .ewc import SIHandler
+        return SIHandler
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
@@ -70,11 +85,17 @@ __all__ = [
     'IntrospectionEngine',
     'PerformanceMonitor',
     'EWCHandler',
+    'SIHandler',
     'MetaController',
     'MetaControllerConfig',
     'GradientAnalyzer',
     'DynamicLearningRateScheduler',
     'CurriculumStrategy',
     'ProductionAdapter',
-    'InferenceMode'
+    'InferenceMode',
+    # SOTA V7.0 Memory System
+    'UnifiedMemoryHandler',
+    'PrioritizedReplayBuffer',
+    'AdaptiveRegularization',
+    'DynamicConsolidationScheduler'
 ]

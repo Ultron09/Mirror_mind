@@ -111,7 +111,9 @@ class ProductionAdapter:
                 self.framework.model.train()
                 
                 # A. Core Update (Gradients)
-                metrics = self.framework.train_step(input_data, target)
+                # Disable dreaming during immediate online updates to avoid
+                # replay-triggered instability during short, high-stress runs.
+                metrics = self.framework.train_step(input_data, target, enable_dream=False)
                 
                 # B. Meta Update (Reptile/LR Schedule)
                 if self.meta_controller:

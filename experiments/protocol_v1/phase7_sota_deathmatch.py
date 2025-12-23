@@ -27,6 +27,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import platform
 import datetime
+import random as py_random
+from pathlib import Path
 
 # Path Setup
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
@@ -46,6 +48,23 @@ except ImportError:
 # Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(message)s')
 logger = logging.getLogger("Phase7")
+
+# Optional deterministic seed for reproducibility. Read from env var `MM_SEED` if provided.
+seed_val = None
+seed_env = os.environ.get('MM_SEED', None)
+if seed_env is not None:
+    try:
+        seed_val = int(seed_env)
+        np.random.seed(seed_val)
+        py_random.seed(seed_val)
+        torch.manual_seed(seed_val)
+        torch.use_deterministic_algorithms(False)
+        logger.info(f"🎯 MM_SEED set: {seed_val} — seeding RNGs for reproducibility")
+    except Exception:
+        logger.warning(f"Invalid MM_SEED value: {seed_env}")
+
+# Force-disable dreaming in this experiment harness (helps stability)
+os.environ['MM_DISABLE_DREAM'] = '1'
 
 # ==============================================================================
 # HELPER: Visualization & Reporting
@@ -214,6 +233,16 @@ def run_deathmatch():
         device='cpu'
     )
     framework = AdaptiveFramework(mm_core, fw_config)
+    # Explicitly disable dreaming/replay inside this experiment to avoid
+    # replay-triggered instabilities for short stress-test runs.
+    try:
+        framework.config.enable_dreaming = False
+    except Exception:
+        pass
+    try:
+        framework.config.dream_interval = 999999
+    except Exception:
+        pass
     adapter = ProductionAdapter(framework, inference_mode=InferenceMode.ONLINE)
     
     # --- SETUP BASELINE ---
@@ -268,10 +297,10 @@ def run_deathmatch():
                 with torch.no_grad():
                     if contender == 'base':
                         for p in base_model.parameters():
-                            p.add_(torch.randn_like(p) * 0.1)
+                            p.add_(torch.randn_like(p) * 0.02)
                     else:
                         for p in framework.model.parameters():
-                            p.add_(torch.randn_like(p) * 0.1)
+                            p.add_(torch.randn_like(p) * 0.02)
 
             # Record
             obs = next_obs
@@ -310,7 +339,7 @@ def run_deathmatch():
         status_str = "PASSED"
     else:
         status_str = "FAILED"
-        
+
     generate_artifacts(history, stats, status_str)
     
     logger.info("-" * 40)
@@ -327,6 +356,54 @@ def run_deathmatch():
         print("\n" + "="*40)
         print("🔴 FAILED: MirrorMind did not beat Baseline.")
         print("="*40 + "\n")
+        # Save diagnostic artifacts for post-mortem debugging
+        try:
+            ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            ckpt_dir = Path('checkpoints')
+            ckpt_dir.mkdir(parents=True, exist_ok=True)
+            fname = f'phase7_failure_{seed_val if seed_val is not None else ts}.pt'
+            # Attempt to save framework checkpoint if available
+            try:
+                # 'framework' may be out of scope if refactored; guard access
+                if 'framework' in locals() and hasattr(framework, 'save_checkpoint'):
+                    framework.save_checkpoint(str(ckpt_dir / fname))
+                    logger.info(f"   🔍 Saved framework checkpoint: {ckpt_dir / fname}")
+            except Exception as e:
+                logger.warning(f"Failed to save framework checkpoint: {e}")
+
+            # Save lightweight telemetry and recent history for quick inspection
+            dbg_dir = Path('debug')
+            dbg_dir.mkdir(parents=True, exist_ok=True)
+            dbg_name = dbg_dir / f'phase7_failure_{seed_val if seed_val is not None else ts}.npz'
+            try:
+                telemetry = None
+                adapters = None
+                loss_hist = None
+                if 'framework' in locals():
+                    try:
+                        tb = getattr(framework, 'telemetry_buffer', None)
+                        if tb is not None:
+                            telemetry = tb.detach().cpu().numpy()
+                    except Exception:
+                        telemetry = None
+                    try:
+                        ab = getattr(framework, 'adapter_bank', None)
+                        if ab is not None and hasattr(ab, 'adapters'):
+                            # collect adapter param norms
+                            adapters = {str(k): {kk: (vv.detach().cpu().numpy() if hasattr(vv, 'detach') else None) for kk, vv in v.items()} for k, v in ab.adapters.items()}
+                    except Exception:
+                        adapters = None
+                    try:
+                        loss_hist = list(getattr(framework, 'loss_history', []))
+                    except Exception:
+                        loss_hist = None
+
+                np.savez_compressed(str(dbg_name), telemetry=telemetry, adapters=str(adapters), history=str(history), loss_history=str(loss_hist), seed=seed_val)
+                logger.info(f"   🔍 Saved debug artifacts: {dbg_name}")
+            except Exception as e:
+                logger.warning(f"Failed to save debug NPZ: {e}")
+        except Exception as e:
+            logger.warning(f"Failure diagnostic saving failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

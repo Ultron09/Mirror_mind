@@ -21,14 +21,17 @@ from collections import deque
 from pathlib import Path
 import logging
 import sys
+import os
 import platform
 import shutil
 from datetime import datetime
 
-# Import EWC and Meta-Controller
+# Import EWC, Memory, Meta-Controller, and Consciousness
 
-from .ewc import EWCHandler
+from .ewc import EWCHandler, SIHandler
+from .memory import UnifiedMemoryHandler, PrioritizedReplayBuffer, AdaptiveRegularization, DynamicConsolidationScheduler
 from .meta_controller import MetaController, MetaControllerConfig
+from .consciousness import ConsciousnessCore, AttentionMechanism, IntrinisicMotivation, SelfAwarenessMonitor
 
 # OPTIMIZATION: Use Tensor Cores on Ampere+ GPUs
 torch.set_float32_matmul_precision('high')
@@ -38,9 +41,9 @@ torch.set_float32_matmul_precision('high')
 @dataclass
 class AdaptiveFrameworkConfig:
     """
-    Configuration for the Universal Framework.
+    Configuration for the Universal Framework (V6.5 - Panic Switch Edition).
     """
-    # Architecture (for IntrospectionModule)
+    # Architecture
     model_dim: int = 256
     num_layers: int = 6
     num_heads: int = 8
@@ -57,53 +60,82 @@ class AdaptiveFrameworkConfig:
     adaptation_threshold: float = 0.05
     
     # Introspection
-    telemetry_dim: int = 4 # Mean, Var, Max, Min
-    
-    # Memory
+    telemetry_dim: int = 4 
     feedback_buffer_size: int = 10000
     evaluation_frequency: int = 10
+    # How often to run dreaming/replay (in steps). Increase for short-run stability.
+    dream_interval: int = 10
     
     # Optimization
     compile_model: bool = True 
     use_amp: bool = False
-    
-    # Device (auto-detected if None)
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
-    
-    # Logging
     log_frequency: int = 50
     checkpoint_frequency: int = 500
-    # --- NEW: ROBUSTNESS ---
-    # If True, the model scales gradients based on "Surprise" (Loss magnitude)
+    # Gradient clipping
+    gradient_clip_norm: float = 1.0
+    # Maximum allowed norm for adapter parameters (prevents catastrophic adapter jumps)
+    adapter_max_norm: float = 2.0
+    
+    # --- V6.5: HIERARCHICAL REFLEX ---
     enable_active_shield: bool = True 
     
-    # Below this loss, the model considers itself "Correct" and refuses to change.
-    # We derived 0.08 from your Test 5 data trace.
-    active_shield_threshold: float = 0.08 
+    # SHIELD: Only activate shield if error is BELOW this.
+    active_shield_threshold: float = 0.05 
+    # SLOPE: Lowered from 50.0 to 10.0 to prevent "Snap-Freezing" adaptation.
+    active_shield_slope: float = 10.0   
     
-    # How aggressively the gate closes (Higher = sharper cutoff)
-    active_shield_slope: float = 50.0
-
-    @classmethod
-    def quick_start(cls):
-        """Beginner-friendly CPU config"""
-        return cls(
-            model_dim=128, 
-            num_layers=4, 
-            device='cpu', 
-            compile_model=False,
-            learning_rate=1e-3
-        )
+    # PANIC: If Raw MSE > 0.2, IGNORE Z-SCORES. JUST ADAPT.
+    # This is the "Gravity Failed" override.
+    panic_threshold: float = 0.2
+    
+    # Bootstrapping: Force learning for first N steps (Fixes the Step 20 Crash)
+    warmup_steps: int = 50
+    
+    # Z-Score Thresholds (Statistical Surprise)
+    novelty_z_threshold: float = 2.0
+    survival_z_threshold: float = 4.0
+    # Allow experiments to disable dreaming/replay to improve short-run stability
+    enable_dreaming: bool = True
+    # Tracing / debugging
+    enable_tracing: bool = False
+    trace_max_records: int = 1000
+    # Importance estimation method: 'ewc' (default) or 'si' (synaptic intelligence)
+    importance_method: str = 'ewc'
+    # SI hyperparameters (used if importance_method == 'si')
+    si_lambda: float = 1.0
+    si_xi: float = 1e-3
+    
+    # SOTA Unified Memory System (V7.0)
+    memory_type: str = 'hybrid'  # 'ewc', 'si', or 'hybrid'
+    consolidation_criterion: str = 'hybrid'  # 'time', 'surprise', or 'hybrid'
+    consolidation_min_interval: int = 30  # Min steps before consolidation allowed
+    consolidation_max_interval: int = 100  # Max steps between consolidations
+    consolidation_surprise_threshold: float = 2.5  # Z-score threshold for surprise-based consolidation
+    adaptive_lambda: bool = True  # Scale λ by operating mode
+    use_prioritized_replay: bool = True  # Prioritize hard/surprising examples
+    replay_priority_temperature: float = 0.6  # Softmax temperature for priority sampling (0=greedy, 1=uniform)
+    
+    # --- V7.0: CONSCIOUSNESS LAYER ---
+    enable_consciousness: bool = True  # Enable self-aware learning
+    use_attention: bool = True  # Learn which features matter
+    use_intrinsic_motivation: bool = True  # Learn from curiosity/uncertainty
+    consciousness_buffer_size: int = 5000  # How much history to track
+    novelty_threshold: float = 2.0  # Z-score threshold for "novel" examples
 
     @classmethod
     def production(cls):
-        """High-performance GPU config"""
         return cls(
             model_dim=512, 
-            num_layers=12, 
             device='cuda', 
-            use_amp=True,
-            compile_model=True
+            use_amp=True, 
+            compile_model=True,
+            memory_type='hybrid',
+            use_prioritized_replay=True,
+            adaptive_lambda=True,
+            enable_consciousness=True,
+            use_attention=True,
+            use_intrinsic_motivation=True
         )
 
 
@@ -185,23 +217,42 @@ class IntrospectionEngine(nn.Module):
         
         # Predict Policy parameters
         policy_out = self.policy_net(global_state)
-        
+        # Guard against NaNs/Infs in policy outputs
+        policy_out = torch.nan_to_num(policy_out, nan=0.0, posinf=10.0, neginf=-10.0)
+
         # Split into Mu and Log-Sigma (using log for numerical stability)
         # Shape: [Batch, 4] -> [Batch, 2], [Batch, 2]
-        mu, log_sigma = policy_out.chunk(2, dim=-1)
-        sigma = torch.exp(torch.clamp(log_sigma, -5, 2)) # Clamp sigma
-        
-        # Create Distribution
-        dist = torch.distributions.Normal(mu, sigma)
-        
-        # Sample Action (Affine Modifiers)
-        # We sample to explore the "Action Space" of weight editing
-        action = dist.sample()
-        
-        # Calculate Log Prob (Critical for REINFORCE)
-        # Sum over the 2 dimensions (Scale & Shift) to get prob of the vector
-        log_prob = dist.log_prob(action).sum(dim=-1)
-        
+        try:
+            mu, log_sigma = policy_out.chunk(2, dim=-1)
+        except Exception:
+            # Fallback to zeros
+            mu = torch.zeros(1, 2, device=global_state.device)
+            log_sigma = torch.zeros(1, 2, device=global_state.device)
+
+        # Clamp log_sigma and convert to sigma with safety floor
+        log_sigma = torch.clamp(log_sigma, min=-10.0, max=5.0)
+        sigma = torch.exp(log_sigma)
+        sigma = torch.clamp(sigma, min=1e-3, max=10.0)
+
+        # Create Distribution (guarded)
+        try:
+            dist = torch.distributions.Normal(mu, sigma)
+            action = dist.rsample()
+            log_prob = dist.log_prob(action).sum(dim=-1)
+        except Exception:
+            # Return safe defaults on failure
+            action = torch.zeros_like(mu)
+            log_prob = torch.zeros(mu.size(0), device=mu.device)
+
+        # Expose last policy params for tracing (non-blocking, small objects)
+        try:
+            # store cpu numpy copies for later inspection
+            self._last_mu = mu.detach().cpu().numpy() if isinstance(mu, torch.Tensor) else None
+            self._last_sigma = sigma.detach().cpu().numpy() if isinstance(sigma, torch.Tensor) else None
+        except Exception:
+            self._last_mu = None
+            self._last_sigma = None
+
         return log_var, action, log_prob
 
 
@@ -294,10 +345,94 @@ class AdaptiveFramework(nn.Module):
         
         # 2. The "Cortex" (Weight Editor)
         self.monitor = PerformanceMonitor(self.model, config, self.device)
-        self.feedback_buffer = FeedbackBuffer(config, self.device)
-        self.ewc = EWCHandler(self.model, ewc_lambda=0.4)
         
-       
+        # 3. Memory System (SOTA V7.0 - Unified Handler)
+        memory_type = getattr(config, 'memory_type', 'hybrid')
+        consolidation_criterion = getattr(config, 'consolidation_criterion', 'hybrid')
+        
+        try:
+            if memory_type in ['si', 'hybrid']:
+                # Use new unified handler with SI
+                self.ewc = UnifiedMemoryHandler(
+                    self.model,
+                    method=memory_type,
+                    si_lambda=getattr(config, 'si_lambda', 1.0),
+                    si_xi=getattr(config, 'si_xi', 1e-3),
+                    ewc_lambda=0.4,
+                    consolidation_criterion=consolidation_criterion
+                )
+                self.logger.info(f"🧠 Using Unified Memory Handler (method={memory_type}, consolidation={consolidation_criterion})")
+            else:
+                # Fall back to legacy EWC
+                self.ewc = EWCHandler(self.model, ewc_lambda=0.4)
+                self.logger.info("🔁 Using legacy EWC handler")
+        except Exception as e:
+            self.logger.warning(f"Memory handler initialization failed, fallback to EWC: {e}")
+            self.ewc = EWCHandler(self.model, ewc_lambda=0.4)
+        
+        # 4. Experience Replay (with optional prioritization)
+        self.feedback_buffer = FeedbackBuffer(config, self.device)
+        use_prioritized = getattr(config, 'use_prioritized_replay', True)
+        if use_prioritized:
+            self.prioritized_buffer = PrioritizedReplayBuffer(
+                capacity=config.feedback_buffer_size,
+                temperature=getattr(config, 'replay_priority_temperature', 0.6)
+            )
+            self.logger.info("⚡ Prioritized replay enabled")
+        else:
+            self.prioritized_buffer = None
+        
+        # 5. Adaptive Regularization
+        self.adaptive_reg = AdaptiveRegularization(base_lambda=0.4)
+        
+        # 6. Consolidation Scheduler
+        self.consolidation_scheduler = DynamicConsolidationScheduler(
+            min_interval=getattr(config, 'consolidation_min_interval', 30),
+            max_interval=getattr(config, 'consolidation_max_interval', 100)
+        )
+        
+        # 7. CONSCIOUSNESS LAYER (V7.0 - Self-Aware Learning)
+        enable_consciousness = getattr(config, 'enable_consciousness', True)
+        if enable_consciousness:
+            self.consciousness = ConsciousnessCore(
+                model=self.model,
+                feature_dim=config.model_dim,
+                awareness_buffer_size=getattr(config, 'consciousness_buffer_size', 5000),
+                novelty_threshold=getattr(config, 'novelty_threshold', 2.0)
+            )
+            self.logger.info("🧠 Consciousness layer enabled (self-aware learning)")
+            
+            # Attention mechanism (learns which features matter)
+            if getattr(config, 'use_attention', True):
+                self.attention = AttentionMechanism(
+                    feature_dim=config.model_dim,
+                    num_heads=config.num_heads,
+                    learned=True
+                ).to(self.device)
+                self.logger.info("👁️ Attention mechanism enabled (feature importance learning)")
+            else:
+                self.attention = None
+            
+            # Intrinsic motivation (curiosity-driven learning)
+            if getattr(config, 'use_intrinsic_motivation', True):
+                self.intrinsic_motivation = IntrinisicMotivation(
+                    update_frequency=100,
+                    uncertainty_weight=0.5,
+                    novelty_weight=0.3,
+                    learning_progress_weight=0.2
+                )
+                self.logger.info("🎯 Intrinsic motivation enabled (curiosity-driven learning)")
+            else:
+                self.intrinsic_motivation = None
+            
+            # Self-awareness monitor
+            self.self_awareness = SelfAwarenessMonitor(moving_average_window=100)
+            self.logger.info("🔍 Self-awareness monitor enabled")
+        else:
+            self.consciousness = None
+            self.attention = None
+            self.intrinsic_motivation = None
+            self.self_awareness = None
         
         self.optimizer = AdamW(self.model.parameters(), lr=config.learning_rate)
          # 3. The "Meta-Controller" (Reptile Optimizer)
@@ -310,10 +445,21 @@ class AdaptiveFramework(nn.Module):
         self.meta_optimizer = AdamW(self.introspection_engine.parameters(), 
                                    lr=config.meta_learning_rate,
                                    weight_decay=1e-2) 
+        # Adapter optimizer: small, fast-learning adapters
+        try:
+            adapter_params = list(self.adapter_bank.parameters()) if hasattr(self, 'adapter_bank') and self.adapter_bank is not None else []
+            if adapter_params:
+                self.adapter_optimizer = AdamW(adapter_params, lr=config.weight_adaptation_lr)
+            else:
+                self.adapter_optimizer = None
+        except Exception:
+            self.adapter_optimizer = None
         
         self.loss_history = deque(maxlen=100) # Increased for Z-Score calc
         self.meta_log_probs = []
         self.step_count = 0
+        # Step-level tracing (populated when MM_TRACE=1)
+        self.step_trace = []
         
         # RL Initialization
         self.reward_baseline = 0.0
@@ -348,7 +494,8 @@ class AdaptiveFramework(nn.Module):
         for name, module in self.model.named_modules():
             if isinstance(module, valid_types):
                 self.layer_map[name] = idx
-                module.register_forward_hook(self._generate_fast_hook(idx))
+                # Use forward pre-hook to apply adapters to inputs safely (avoids inplace on outputs)
+                module.register_forward_pre_hook(self._generate_fast_hook(idx))
                 idx += 1
         
         self.num_tracked_layers = idx
@@ -358,20 +505,58 @@ class AdaptiveFramework(nn.Module):
             dtype=torch.float32,
             requires_grad=False
         )
+        # Initialize AdapterBank for fast, parameter-efficient task adapters
+        try:
+            from .adapters import AdapterBank
+            self.adapter_bank = AdapterBank(num_layers=self.num_tracked_layers, device=self.device)
+            self.logger.info(f"🔌 AdapterBank initialized for {self.num_tracked_layers} layers.")
+        except Exception as e:
+            self.adapter_bank = None
+            self.logger.warning(f"AdapterBank initialization failed: {e}")
         self.logger.info(f"⚡ Fast Telemetry Bus established for {idx} layers.")
 
     def _generate_fast_hook(self, layer_idx):
-        def hook(module, input, output):
-            if isinstance(output, tuple): activation = output[0]
-            elif isinstance(output, dict): activation = list(output.values())[0]
-            else: activation = output
-            
-            act_flat = activation.detach().flatten()
-            if act_flat.numel() > 0:
-                self.telemetry_buffer[layer_idx, 0] = act_flat.mean()
-                self.telemetry_buffer[layer_idx, 1] = act_flat.var(unbiased=False)
-                self.telemetry_buffer[layer_idx, 2] = act_flat.max()
-                self.telemetry_buffer[layer_idx, 3] = act_flat.min()
+        def hook(module, inputs):
+            # inputs is a tuple; we will examine first tensor input and apply adapter to it
+            try:
+                inp = inputs[0]
+                if isinstance(inp, torch.Tensor):
+                    act_flat = inp.detach().flatten()
+                    if act_flat.numel() > 0:
+                        self.telemetry_buffer[layer_idx, 0] = act_flat.mean()
+                        self.telemetry_buffer[layer_idx, 1] = act_flat.var(unbiased=False)
+                        self.telemetry_buffer[layer_idx, 2] = act_flat.max()
+                        self.telemetry_buffer[layer_idx, 3] = act_flat.min()
+
+                    # Apply adapter out-of-place and return modified inputs tuple
+                    if hasattr(self, 'adapter_bank') and self.adapter_bank is not None:
+                        # Try to infer output dim from module attributes for vector adapters
+                        out_dim = None
+                        try:
+                            if hasattr(module, 'out_features'):
+                                out_dim = int(module.out_features)
+                            elif hasattr(module, 'out_channels'):
+                                out_dim = int(module.out_channels)
+                            elif hasattr(module, 'hidden_size'):
+                                out_dim = int(module.hidden_size)
+                        except Exception:
+                            out_dim = None
+
+                        # Ensure adapter storage is sized appropriately
+                        try:
+                            self.adapter_bank.ensure_index(layer_idx, out_dim=out_dim)
+                        except Exception:
+                            pass
+
+                        adapted = self.adapter_bank.apply(layer_idx, inp)
+                        if adapted is not inp:
+                            # return a new inputs tuple with adapted first element
+                            new_inputs = (adapted,) + inputs[1:]
+                            return new_inputs
+            except Exception:
+                pass
+            # default: no change
+            return None
         return hook
 
     def forward(self, *args, **kwargs):
@@ -383,184 +568,529 @@ class AdaptiveFramework(nn.Module):
         try:
             # FAST PATH: No stacking needed. The buffer IS the state.
             global_state = self.telemetry_buffer.mean(dim=0)
-            
-            # RL Step
-            log_var, action, log_prob = self.introspection_engine(global_state)
-            
-            affine_modifiers = action.detach()
-            self.meta_log_probs.append(log_prob)
+            # Guard against NaNs/Infs in telemetry (can happen early or with bad hooks)
+            global_state = torch.nan_to_num(global_state, nan=0.0, posinf=1e3, neginf=-1e3)
+            # Clamp to a reasonable dynamic range to stabilize Introspection input
+            global_state = torch.clamp(global_state, min=-10.0, max=10.0)
+
+            # RL Step (guarded)
+            try:
+                log_var, action, log_prob = self.introspection_engine(global_state)
+                # Ensure outputs are finite
+                if not torch.isfinite(log_var).all():
+                    raise ValueError('Introspection produced non-finite log_var')
+                if action is None or not torch.isfinite(action).all():
+                    raise ValueError('Introspection produced invalid action')
+                self.meta_log_probs.append(log_prob)
+                affine_modifiers = action.detach()
+            except Exception as e:
+                self.logger.debug(f"Introspection failed (guarded): {e}")
+                log_var = torch.tensor(0.0).to(self.device)
+                affine_modifiers = None
                 
         except Exception as e:
             self.logger.warning(f"Introspection failed: {e}")
             log_var = torch.tensor(0.0).to(self.device)
             affine_modifiers = None
             self.meta_log_probs.clear()
-            
+        # If tracing is enabled at inference, write a light-weight forward trace
+        try:
+            if os.environ.get('MM_TRACE', '0') == '1':
+                try:
+                    import json
+                    dbg_dir = Path('debug')
+                    dbg_dir.mkdir(parents=True, exist_ok=True)
+                    seed = os.environ.get('MM_SEED', None) or str(int(time.time()))
+                    fpath = dbg_dir / f'forward_trace_{seed}.ndjson'
+                    entry = {
+                        'step_count': int(getattr(self, 'step_count', 0)),
+                        'log_var': float(log_var.item()) if hasattr(log_var, 'item') else None,
+                        'affine_modifiers': None if affine_modifiers is None else (affine_modifiers.detach().cpu().tolist() if hasattr(affine_modifiers, 'detach') else None),
+                        'telemetry': None
+                    }
+                    try:
+                        entry['telemetry'] = self.telemetry_buffer.detach().cpu().tolist()
+                    except Exception:
+                        entry['telemetry'] = None
+                    self.logger.debug(f"[TRACE] Writing forward trace to {fpath}")
+                    with open(fpath, 'a', encoding='utf-8') as fh:
+                        fh.write(json.dumps(entry) + '\n')
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         return output, log_var, affine_modifiers
 
-    def train_step(self, input_data, target_data, enable_dream: bool = True):
+    def train_step(self, input_data, target_data, enable_dream: bool = True, meta_step: bool = True):
         self.model.train()
         self.optimizer.zero_grad(set_to_none=True)
         self.meta_optimizer.zero_grad(set_to_none=True)
+        if hasattr(self, 'adapter_optimizer') and self.adapter_optimizer is not None:
+            try:
+                self.adapter_optimizer.zero_grad(set_to_none=True)
+            except Exception:
+                pass
         
         # 1. Forward Pass
         output, log_var, affine_modifiers = self.forward(input_data)
         
-        # Handle Output Types & Calculate Loss
+        # Loss & Raw MSE Calculation
         pred = output
         if hasattr(output, 'logits'): pred = output.logits
         elif isinstance(output, tuple): pred = output[0]
         
+        # Calculate Raw MSE (The Absolute Truth)
         if pred.shape == target_data.shape:
-            mse = (pred - target_data) ** 2
+            raw_mse = F.mse_loss(pred, target_data)
             precision = torch.exp(-log_var)
-            loss = torch.mean(0.5 * (log_var + mse * precision))
+            loss = torch.mean(0.5 * (log_var + (pred - target_data) ** 2 * precision))
         elif pred.dim() > target_data.dim(): 
+             # Classification Support
              ce_loss = F.cross_entropy(pred.view(-1, pred.size(-1)), target_data.view(-1), reduction='none')
+             raw_mse = ce_loss.mean()
              precision = torch.exp(-log_var)
              loss = torch.mean(0.5 * (log_var + ce_loss * precision))
         else:
-             loss = F.mse_loss(pred.float(), target_data.float())
+             raw_mse = F.mse_loss(pred.float(), target_data.float())
+             loss = raw_mse
 
-        # 3. NaN Guard (Early Exit)
+        # NaN Guard
         if torch.isnan(loss) or torch.isinf(loss):
              if len(self.meta_log_probs) > 0: self.meta_log_probs.pop()
-             return {'loss': 10.0, 'uncertainty': 0.0, 'weight_adaptation': 0.0}
+             return {'loss': 10.0, 'status': 'nan_bailout'}
 
-        # ==========================================================
-        # SOTA FIX: SURPRISE-BASED CONSOLIDATION (Auto-EWC)
-        # ==========================================================
         current_loss_val = loss.item()
-        trigger_ewc = False
-        z_score = 0.0
+        current_mse_val = raw_mse.item()
 
+        # --- Tracing: collect pre-update param/adapters norms and telemetry if requested
+        do_trace = os.environ.get('MM_TRACE', '0') == '1'
+        trace_entry = None
+        if do_trace:
+            try:
+                # model param norm
+                total_param_norm = 0.0
+                for p in self.model.parameters():
+                    try:
+                        total_param_norm += float(p.data.norm().item() ** 2)
+                    except Exception:
+                        pass
+                total_param_norm = float(total_param_norm ** 0.5)
+
+                # adapter norms (if any)
+                adapter_norms = None
+                if hasattr(self, 'adapter_bank') and self.adapter_bank is not None:
+                    adapter_norms = []
+                    try:
+                        for p in self.adapter_bank.parameters():
+                            try:
+                                adapter_norms.append(float(p.data.norm().item()))
+                            except Exception:
+                                adapter_norms.append(None)
+                    except Exception:
+                        adapter_norms = None
+
+                telemetry_snapshot = None
+                try:
+                    telemetry_snapshot = self.telemetry_buffer.detach().cpu().numpy().tolist()
+                except Exception:
+                    telemetry_snapshot = None
+
+                trace_entry = {
+                    'step': int(self.step_count),
+                    'pre_param_norm': total_param_norm,
+                    'pre_adapter_norms': adapter_norms,
+                    'telemetry': telemetry_snapshot,
+                    'affine_modifiers': None if affine_modifiers is None else (affine_modifiers.detach().cpu().numpy().tolist() if hasattr(affine_modifiers, 'detach') else None),
+                    'log_var': float(log_var.item()) if hasattr(log_var, 'item') else None,
+                    'loss_pre': float(current_loss_val),
+                    'mse_pre': float(current_mse_val)
+                }
+            except Exception:
+                trace_entry = None
+        
+        # ---------------------------------------------------------
+        # V6.5: HIERARCHICAL REFLEX SYSTEM
+        # ---------------------------------------------------------
+        
+        # A. Calculate Statistical Surprise (Z-Score)
+        z_score = 0.0
         if len(self.loss_history) > 20:
             hist_mean = np.mean(self.loss_history)
             hist_std = np.std(self.loss_history) + 1e-9
-            z_score = (current_loss_val - hist_mean) / hist_std
-            
-            if z_score > 3.0:
-                last_consolidation = getattr(self, 'last_consolidation_step', 0)
-                if self.step_count > last_consolidation + 50:
-                    trigger_ewc = True
-                    self.last_consolidation_step = self.step_count
+            z_score = (current_mse_val - hist_mean) / hist_std
 
-        if trigger_ewc:
-            self.ewc.consolidate_from_buffer(self.feedback_buffer)
-            self.loss_history.clear() 
-
-        # ==========================================================
-        # 🛡️ ACTIVE SHIELD: The "Boredom" Gate (Plasticity Control)
-        # ==========================================================
-        plasticity = 1.0 # Default: Full Learning
+        # B. MODE SELECTION (The Hierarchy)
         
-        if self.config.enable_active_shield:
-            # Sigmoid Logic: 
-            # If Loss < Threshold -> Plasticity drops to 0
-            # If Loss > Threshold -> Plasticity rises to 1
-            delta = current_loss_val - self.config.active_shield_threshold
-            plasticity = torch.sigmoid(torch.tensor(delta * self.config.active_shield_slope)).item()
+        # 1. BOOTSTRAP: Always learn at start (Warmup)
+        # FIXES STEP 20 CRASH: Forces learning regardless of shield status.
+        if self.step_count < self.config.warmup_steps:
+            mode = "BOOTSTRAP"
+            plasticity_gate = 1.0
+            apply_ewc = False
+            trigger_consolidation = False
+            block_reptile = True 
             
-            # Optimization: If we barely care, don't waste compute on backward()
-            if plasticity < 0.05:
-                # Clear meta-history to prevent noise since we aren't stepping
-                if len(self.meta_log_probs) > 0: self.meta_log_probs.pop()
+        # 2. PANIC: Absolute Error is too high (Gravity Failure)
+        # FIXES STEP 50 CRASH: Overrides safety checks if we are falling.
+        elif current_mse_val > self.config.panic_threshold:
+            mode = "PANIC"
+            plasticity_gate = 1.0
+            apply_ewc = False # CUT THE TETHER (Don't fight old memories)
+            trigger_consolidation = False
+            block_reptile = True # Stop Reptile from pulling weights back
+            
+        # 3. SURVIVAL: Error is low, but spiked massively (Sudden Shock)
+        elif z_score > self.config.survival_z_threshold:
+            mode = "SURVIVAL"
+            plasticity_gate = 1.0
+            apply_ewc = False
+            trigger_consolidation = False
+            block_reptile = True
+            
+        # 4. NOVELTY: New pattern detected (Bird on drone)
+        elif z_score > self.config.novelty_z_threshold:
+            mode = "NOVELTY"
+            plasticity_gate = 1.0
+            apply_ewc = True # Enable Memory Protection
+            
+            # Use dynamic consolidation scheduler (SOTA V7.0)
+            trigger_consolidation, reason = self.consolidation_scheduler.should_consolidate(
+                current_step=self.step_count,
+                z_score=z_score,
+                mode=mode,
+                criterion=getattr(self.config, 'consolidation_criterion', 'hybrid')
+            )
+            self.logger.debug(f"Consolidation check (NOVELTY): {reason}")
+            
+            block_reptile = False
+            # Attempt to retrieve a matching task memory and apply its adapter
+            try:
+                # Use a fairly high similarity threshold for auto-apply
+                applied = self.auto_apply_best_task_memory(threshold=0.85)
+                if applied:
+                    self.logger.info("🔎 Adapter auto-applied from TaskMemory (novelty match).")
+            except Exception as e:
+                self.logger.debug(f"Auto-retrieval failed: {e}")
+            
+        # 5. NORMAL: Smooth sailing -> Engage Active Shield
+        else:
+            mode = "NORMAL"
+            apply_ewc = True
+            
+            # Use dynamic consolidation scheduler for NORMAL mode too
+            trigger_consolidation, reason = self.consolidation_scheduler.should_consolidate(
+                current_step=self.step_count,
+                z_score=z_score,
+                mode=mode,
+                criterion=getattr(self.config, 'consolidation_criterion', 'hybrid')
+            )
+            self.logger.debug(f"Consolidation check (NORMAL): {reason}")
+            
+            block_reptile = False
+            
+            if self.config.enable_active_shield:
+                # Calculate Shield Strength: If Error is low, clamp plasticity.
+                delta = current_mse_val - self.config.active_shield_threshold
+                plasticity_gate = torch.sigmoid(torch.tensor(delta * self.config.active_shield_slope)).item()
+            else:
+                plasticity_gate = 1.0
+
+        # C. EXECUTION - Smart Consolidation with Unified Handler
+        if trigger_consolidation:
+            # Use unified consolidate API with new parameters
+            try:
+                if hasattr(self.ewc, 'consolidate'):
+                    self.ewc.consolidate(
+                        feedback_buffer=self.feedback_buffer,
+                        current_step=self.step_count,
+                        z_score=z_score,
+                        mode=mode
+                    )
+                    self.consolidation_scheduler.record_consolidation(self.step_count)
+                elif hasattr(self.ewc, 'consolidate_from_buffer'):
+                    self.ewc.consolidate_from_buffer(self.feedback_buffer)
+            except Exception as e:
+                self.logger.warning(f"Consolidation failed: {e}")
+            # Save adapters and fingerprint together with task memory for later retrieval
+            try:
+                fp = self.telemetry_buffer.mean(dim=0) if hasattr(self, 'telemetry_buffer') else None
+                self.ewc.save_task_memory(name=None, data_loader=None, adapters=getattr(self, 'adapter_bank', None), fingerprint=fp)
+            except Exception as e:
+                self.logger.warning(f"Failed to save task memory with adapters: {e}")
+
+            self.loss_history.clear()
+
+        # Backward Pass with Adaptive Memory Penalty
+        # Only apply Memory Penalty (EWC/SI) if NOT in Panic/Survival
+        if self.ewc.is_enabled() and apply_ewc:
+            # Compute adaptive lambda based on operating mode (SOTA V7.0)
+            if hasattr(self, 'adaptive_reg') and getattr(self.config, 'adaptive_lambda', True):
+                # Track steps in current mode
+                if not hasattr(self, 'mode_history'):
+                    self.mode_history = deque(maxlen=10)
+                    self.mode_step_count = 0
                 
-                # We return early, effectively "freezing" the model for this step
-                return {
-                    "loss": current_loss_val,
-                    "uncertainty": log_var.item(),
-                    "plasticity": 0.0, 
-                    "status": "shielded_skip",
-                    "weight_adaptation": 0.0,
-                    "surprise_z_score": float(z_score) if isinstance(z_score, (float, int)) else z_score.item()
-                }
-
-        # ==========================================================
-
-        # 4. Backward & Step
-        if self.ewc.is_enabled():
-            loss += self.ewc.compute_penalty()
+                if len(self.mode_history) == 0 or self.mode_history[-1] != mode:
+                    self.mode_history.append(mode)
+                    self.mode_step_count = 0
+                else:
+                    self.mode_step_count += 1
+                
+                # Get adaptive lambda
+                adaptive_lambda_mult = self.adaptive_reg.get_lambda(mode, self.mode_step_count)
+            else:
+                adaptive_lambda_mult = 1.0
             
+            # Compute penalty with adaptive multiplier
+            if hasattr(self.ewc, 'compute_penalty') and callable(getattr(self.ewc, 'compute_penalty')):
+                penalty = self.ewc.compute_penalty(adaptive_mode=mode, step_in_mode=getattr(self, 'mode_step_count', 0))
+            else:
+                penalty = self.ewc.compute_penalty()
+            
+            loss += penalty * adaptive_lambda_mult
+
         loss.backward(retain_graph=True)
+
+        # record gradient norm (pre-clipping)
+        if do_trace and trace_entry is not None:
+            try:
+                grad_sq = 0.0
+                for p in self.model.parameters():
+                    if p.grad is not None:
+                        try:
+                            grad_sq += float(p.grad.data.norm().item() ** 2)
+                        except Exception:
+                            pass
+                grad_norm = float(grad_sq ** 0.5)
+                trace_entry['grad_norm_preclip'] = grad_norm
+            except Exception:
+                trace_entry['grad_norm_preclip'] = None
+
+        # Adapter updates: always allow adapters to step (fast adaptation),
+        # but in emergency modes we skip backbone updates (adapter-only).
+        adapter_only = False
+        if hasattr(self, 'adapter_optimizer') and self.adapter_optimizer is not None and mode in ["PANIC", "SURVIVAL"]:
+            adapter_only = True
+
+        # Prepare SI snapshot before any optimizer steps (if supported)
+        param_before = None
+        try:
+            if hasattr(self.ewc, 'before_step_snapshot'):
+                param_before = self.ewc.before_step_snapshot()
+        except Exception:
+            param_before = None
+
+        # Step adapter optimizer if available (help adapters adapt continuously).
+        if hasattr(self, 'adapter_optimizer') and self.adapter_optimizer is not None:
+            try:
+                self.adapter_optimizer.step()
+                # Post-update: Clip adapter parameter norms to avoid catastrophic jumps
+                try:
+                    maxn = getattr(self.config, 'adapter_max_norm', None) or (self.config.gradient_clip_norm * 2.0)
+                    if hasattr(self, 'adapter_bank') and self.adapter_bank is not None:
+                        for p in self.adapter_bank.parameters():
+                            # Some adapter params may not be Parameters; guard conversion
+                            try:
+                                if p is None: continue
+                                with torch.no_grad():
+                                    n = float(p.data.norm())
+                                    if n > maxn and n > 0:
+                                        p.data.mul_(maxn / (n + 1e-6))
+                            except Exception:
+                                pass
+                except Exception:
+                    # Adapter clipping must not break training loop
+                    pass
+            except Exception as e:
+                self.logger.warning(f"Adapter optimizer step failed: {e}")
+
+        if hasattr(self, 'adapter_optimizer') and self.adapter_optimizer is not None and (hasattr(self, 'adapter_only') and adapter_only):
+            # Skip backbone update during adapter-only emergency
+            pass
+        else:
+            # Apply Plasticity Gate (The Shield)
+            if plasticity_gate < 0.99:
+                if plasticity_gate < 0.01:
+                    # Optimization: Skip update entirely if bored
+                    if len(self.meta_log_probs) > 0: self.meta_log_probs.pop()
+                    self.loss_history.append(current_mse_val) 
+                    return {"loss": current_loss_val, "status": "skipped", "plasticity": 0.0}
+                      
+                with torch.no_grad():
+                    for param in self.model.parameters():
+                        if param.grad is not None:
+                            param.grad.mul_(plasticity_gate)
+
+            # Clip backbone gradients before optimizer step
+            try:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.gradient_clip_norm)
+            except Exception:
+                pass
+            self.optimizer.step()
+
+            # If importance handler supports path accumulation (SI), update it now
+            try:
+                if param_before is not None and hasattr(self.ewc, 'accumulate_path'):
+                    # SIHandler uses .accumulate_path(param_before)
+                    self.ewc.accumulate_path(param_before)
+            except Exception:
+                try:
+                    if param_before is not None and hasattr(self.ewc, 'accumulate'):
+                        self.ewc.accumulate(param_before)
+                except Exception:
+                    pass
+
+        # Post-update trace: record post-update norms
+        if do_trace and trace_entry is not None:
+            try:
+                total_param_norm2 = 0.0
+                for p in self.model.parameters():
+                    try:
+                        total_param_norm2 += float(p.data.norm().item() ** 2)
+                    except Exception:
+                        pass
+                total_param_norm2 = float(total_param_norm2 ** 0.5)
+                trace_entry['post_param_norm'] = total_param_norm2
+
+                # adapter post-norms
+                if hasattr(self, 'adapter_bank') and self.adapter_bank is not None:
+                    an = []
+                    try:
+                        for p in self.adapter_bank.parameters():
+                            try:
+                                an.append(float(p.data.norm().item()))
+                            except Exception:
+                                an.append(None)
+                    except Exception:
+                        an = None
+                    trace_entry['post_adapter_norms'] = an
+            except Exception:
+                pass
+            # Append to persistent step_trace for checkpointing
+            try:
+                if getattr(self, 'step_trace', None) is None:
+                    self.step_trace = []
+                self.step_trace.append(trace_entry)
+                maxr = getattr(self.config, 'trace_max_records', 1000)
+                if len(self.step_trace) > maxr:
+                    self.step_trace = self.step_trace[-maxr:]
+            except Exception:
+                pass
+            # Also append a line-based JSON debug file for immediate inspection
+            try:
+                import json
+                dbg_dir = Path('debug')
+                dbg_dir.mkdir(parents=True, exist_ok=True)
+                seed = os.environ.get('MM_SEED', None) or str(int(time.time()))
+                dbg_file = dbg_dir / f'trace_stream_{seed}.ndjson'
+                # Convert non-serializable entries to repr strings
+                def safe(v):
+                    try:
+                        json.dumps(v)
+                        return v
+                    except Exception:
+                        try:
+                            return str(v)
+                        except Exception:
+                            return None
+
+                serial = {k: safe(v) for k, v in trace_entry.items()}
+                with open(dbg_file, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(serial) + '\n')
+            except Exception:
+                pass
         
-        # 5. Apply Active Shield to Gradients
-        # This scales the gradient magnitude based on how "surprised" we are.
-        # It handles the "Soft Transition" (Task 15 case) gracefully.
-        if plasticity < 0.99:
-            with torch.no_grad():
-                for param in self.model.parameters():
-                    if param.grad is not None:
-                        param.grad.mul_(plasticity)
-        
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-        self.optimizer.step()
-        
-        # 6. RL Update (Standard Logic)
-        if self.reward_baseline == 0.0:
-            self.reward_baseline = current_loss_val
+        # RL Update (Introspection) 
+        # Unclamp the "Scream" in Panic/Survival
+        if self.reward_baseline == 0.0: self.reward_baseline = current_loss_val
         advantage = self.reward_baseline - current_loss_val
         
-        if abs(z_score) > 3.0:
+        # Only clamp signal if we are calm
+        if mode in ["NORMAL", "NOVELTY"]:
              advantage = torch.clamp(torch.tensor(advantage), min=-1.0, max=1.0).item()
         
         self.reward_baseline = (1 - self.alpha) * self.reward_baseline + self.alpha * current_loss_val
         
-        if len(self.meta_log_probs) > 0:
-            scaled_reward = advantage * 10.0 
+        if meta_step and len(self.meta_log_probs) > 0:
+            scale = 50.0 if mode in ["PANIC", "SURVIVAL"] else 10.0
             log_prob = self.meta_log_probs[-1]
-            policy_loss = -log_prob * scaled_reward
+            policy_loss = -log_prob * (advantage * scale)
             policy_loss.backward()
-            self.meta_optimizer.step()
+            try:
+                # Clip meta (introspection) gradients to stabilize policy updates
+                try:
+                    torch.nn.utils.clip_grad_norm_(self.introspection_engine.parameters(), self.config.gradient_clip_norm)
+                except Exception:
+                    pass
+                self.meta_optimizer.step()
+            except Exception:
+                pass
             self.meta_log_probs.clear()
         
-        # 7. Meta-Controller Adaptation
-        self.meta_controller.adapt(loss=current_loss_val)
+        # Maintenance
+        # CRITICAL FIX: Block Reptile during Panic
+        if meta_step and not block_reptile:
+            # Only run Reptile/meta-controller adapt if this is a real external step
+            self.meta_controller.adapt(loss=current_loss_val)
         
-        # 8. Explicit Weight Editing
-        weight_adapt_mag = 0.0
+        # Weight Editing
         if self.step_count % self.config.evaluation_frequency == 0:
-            # ... (Existing weight editing logic) ...
             avg_loss = np.mean(self.loss_history) if self.loss_history else loss.item()
-            internals = {
-                'affine_modifiers': affine_modifiers, 
-                'telemetry_buffer': self.telemetry_buffer,
-                'layer_map': self.layer_map
-            }
-            weight_adapt_mag = self.monitor.adapt_weights(
-                current_loss=loss.item(),
-                previous_loss=avg_loss,
-                activations=internals
-            )
-            
-        # 9. Checkpoints & History
-        if self.step_count % self.config.checkpoint_frequency == 0:
-            self.save_checkpoint(f"checkpoints/step_{self.step_count}.pt")
+            internals = {'affine_modifiers': affine_modifiers, 'telemetry_buffer': self.telemetry_buffer, 'layer_map': self.layer_map}
+            # Allow experiments to disable online weight editing (useful for short-run stability)
+            if os.environ.get('MM_DISABLE_WEIGHT_EDIT', '0') != '1':
+                try:
+                    self.monitor.adapt_weights(current_loss=loss.item(), previous_loss=avg_loss, activations=internals)
+                except Exception as e:
+                    self.logger.warning(f"Weight editing failed (guarded): {e}")
+            else:
+                self.logger.info("MM_DISABLE_WEIGHT_EDIT=1 -> Skipping monitor.adapt_weights for stability")
 
-        self.loss_history.append(loss.item())
-        self.feedback_buffer.add(input_data, pred, target_data, -loss.item(), loss.item())
+        # Store MSE in history
+        self.loss_history.append(current_mse_val)
         
-        # AUTOMATIC DREAMING
+        # Add to regular feedback buffer
+        self.feedback_buffer.add(input_data, pred, target_data, -current_mse_val, current_mse_val)
+        
+        # Add to prioritized buffer if enabled (SOTA V7.0)
+        if hasattr(self, 'prioritized_buffer') and self.prioritized_buffer is not None:
+            try:
+                # Get the last snapshot from feedback buffer (just added)
+                snapshot = self.feedback_buffer.buffer[-1] if self.feedback_buffer.buffer else None
+                if snapshot is not None:
+                    self.prioritized_buffer.add(snapshot, z_score=z_score)
+            except Exception as e:
+                self.logger.debug(f"Failed to add to prioritized buffer: {e}")
+        
+        # Automatic Dreaming (Replay Consolidation)
         replay_loss = 0.0
-        if enable_dream and self.step_count > 0 and self.step_count % 10 == 0:
-             dream_metrics = self.learn_from_buffer(batch_size=16, num_epochs=1)
-             replay_loss = dream_metrics.get('replay_loss', 0.0)
+        # Respect explicit environment override to disable dreaming during diagnostics
+        disable_dream_env = os.environ.get('MM_DISABLE_DREAM', '0')
+        dream_int = getattr(self.config, 'dream_interval', 10)
+        if enable_dream and getattr(self.config, 'enable_dreaming', True) and disable_dream_env != '1' and self.step_count > 0 and (dream_int > 0 and (self.step_count % dream_int == 0)):
+             # Disable dreaming during panic (focus on reality)
+             if mode not in ["PANIC", "SURVIVAL", "BOOTSTRAP"]:
+                 dream_metrics = self.learn_from_buffer(batch_size=16, num_epochs=1)
+                 replay_loss = dream_metrics.get('replay_loss', 0.0)
         
-        if enable_dream:
-            self.step_count += 1
+        if enable_dream: self.step_count += 1
         
         return {
             "loss": loss.item(),
-            "replay_loss": replay_loss,
-            "uncertainty_mean": log_var.item(),
-            "weight_adaptation": weight_adapt_mag,
-            "plasticity": plasticity, # NEW METRIC
-            "surprise_z_score": float(z_score) if isinstance(z_score, (float, int)) else z_score.item()
+            "mse": current_mse_val,
+            "plasticity": plasticity_gate,
+            "z_score": float(z_score) if isinstance(z_score, (float, int)) else z_score.item(),
+            "mode": mode
         }
     
     def learn_from_buffer(self, batch_size: int = 32, num_epochs: int = 1) -> Dict[str, float]:
         """
         Active Replay ("Dreaming"): Re-trains on past experiences to consolidate memory.
+        
+        Supports both uniform and prioritized sampling (SOTA V7.0):
+        - Uniform: Standard experience replay
+        - Prioritized: Weight by loss/surprise/recency to emphasize hard examples
         """
         # 1. Safety Check: Do we have enough memories?
         if len(self.feedback_buffer.buffer) < batch_size:
@@ -569,7 +1099,12 @@ class AdaptiveFramework(nn.Module):
                 return {} # Too few to be useful
             batch_size = len(self.feedback_buffer.buffer)
 
-        self.logger.info(f"💤 Dreaming: Consolidating {num_epochs} epochs from {len(self.feedback_buffer.buffer)} memories...")
+        use_prioritized = getattr(self.config, 'use_prioritized_replay', True) and hasattr(self, 'prioritized_buffer') and self.prioritized_buffer is not None
+        
+        self.logger.info(
+            f"💤 Dreaming: Consolidating {num_epochs} epochs from "
+            f"{len(self.feedback_buffer.buffer)} memories (sampling={'prioritized' if use_prioritized else 'uniform'})..."
+        )
         
         replay_losses = []
         
@@ -577,8 +1112,16 @@ class AdaptiveFramework(nn.Module):
         self.model.train()
         
         for epoch in range(num_epochs):
-            # Reservoir Sampling
-            samples = random.sample(self.feedback_buffer.buffer, batch_size)
+            # Sample with or without prioritization
+            if use_prioritized:
+                # Use prioritized replay (emphasizes hard/surprising examples)
+                samples = self.prioritized_buffer.sample_batch(
+                    batch_size=batch_size,
+                    use_priorities=True
+                )
+            else:
+                # Uniform random sampling (classic experience replay)
+                samples = random.sample(self.feedback_buffer.buffer, batch_size)
             
             # 3. Reconstruct Tensors & Move to Device
             # FIX: Using torch.cat (as you correctly have) to handle variable sizes
@@ -587,8 +1130,9 @@ class AdaptiveFramework(nn.Module):
             
             # 4. The Sync Step: Call train_step()
             # CRITICAL FIX: We must pass enable_dream=False here.
-            # This prevents the dream from triggering *another* dream (Infinite Recursion).
-            metrics = self.train_step(inputs, targets, enable_dream=False)
+            # Additionally, disable meta updates for replay steps to avoid
+            # polluting the meta-controller with synthetic replay losses.
+            metrics = self.train_step(inputs, targets, enable_dream=False, meta_step=False)
             
             replay_losses.append(metrics['loss'])
             
@@ -604,16 +1148,56 @@ class AdaptiveFramework(nn.Module):
              
         ewc_state = self.ewc.fisher_dict if hasattr(self.ewc, 'fisher_dict') else None
         
+        # Prepare serializable step_trace (if present)
+        serial_trace = None
+        try:
+            if getattr(self, 'step_trace', None) is not None:
+                serial_trace = []
+                for entry in self.step_trace:
+                    try:
+                        # Ensure all tensors are converted to python types
+                        e = {}
+                        for k, v in entry.items():
+                            if hasattr(v, 'tolist'):
+                                try:
+                                    e[k] = v.tolist()
+                                except Exception:
+                                    e[k] = v
+                            else:
+                                e[k] = v
+                        serial_trace.append(e)
+                    except Exception:
+                        serial_trace.append(entry)
+        except Exception:
+            serial_trace = None
+
         torch.save({
             'model_state': state_dict,
             'introspection_engine': self.introspection_engine.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'meta_optimizer': self.meta_optimizer.state_dict(),
-            'ewc_fisher': ewc_state, 
+            'ewc_fisher': ewc_state,
+            'adapters': None if not hasattr(self, 'adapter_bank') else {str(k): {'scale': v['scale'].cpu(), 'shift': v['shift'].cpu()} for k, v in self.adapter_bank.adapters.items()},
             'config': self.config,
             'step_count': self.step_count
+        ,
+            'step_trace': serial_trace
         }, path)
         self.logger.info(f"Checkpoint saved to {path}")
+        # Also dump trace separately for easier inspection (if tracing enabled)
+        try:
+            if serial_trace:
+                dbg_dir = Path('debug')
+                dbg_dir.mkdir(parents=True, exist_ok=True)
+                seed = os.environ.get('MM_SEED', None) or str(int(time.time()))
+                dbg_path = dbg_dir / f'trace_{seed}.npz'
+                # Convert entries with nested lists to arrays where possible
+                import numpy as _np
+                # Save as object arrays to preserve structure
+                _np.savez_compressed(str(dbg_path), trace=serial_trace)
+                self.logger.info(f"    🔍 Saved trace bundle: {dbg_path}")
+        except Exception:
+            pass
 
     def load_checkpoint(self, path: str):
         ckpt = torch.load(path, map_location=self.device, weights_only=False)
@@ -625,6 +1209,12 @@ class AdaptiveFramework(nn.Module):
         
         if 'ewc_fisher' in ckpt and ckpt['ewc_fisher'] is not None:
             self.ewc.fisher_dict = ckpt['ewc_fisher']
+
+        # Load adapters if present
+        if 'adapters' in ckpt and ckpt['adapters'] is not None and hasattr(self, 'adapter_bank'):
+            for k, v in ckpt['adapters'].items():
+                idx = int(k)
+                self.adapter_bank.adapters[idx] = {'scale': torch.nn.Parameter(v['scale'].to(self.device)), 'shift': torch.nn.Parameter(v['shift'].to(self.device))}
             
         if 'meta_optimizer' in ckpt:
             self.meta_optimizer.load_state_dict(ckpt['meta_optimizer'])
@@ -649,4 +1239,84 @@ class AdaptiveFramework(nn.Module):
         if data_loader is not None:
              self.logger.info("🧠 Consolidating Memories (Full EWC Scan)...")
              self.ewc.save_task_memory(data_loader)
+    
+    def apply_task_memory(self, name_or_path: str, blend: float = 1.0):
+        """Load a saved task memory and apply its adapters/anchors to the framework.
+
+        Returns the loaded payload for inspection.
+        """
+        try:
+            payload = self.ewc.load_task_memory(name_or_path)
+        except Exception as e:
+            self.logger.error(f"Failed to load task memory: {e}")
+            return None
+
+        # Apply adapters if present
+        if 'adapters' in payload and payload['adapters'] and hasattr(self, 'adapter_bank'):
+            for k, v in payload['adapters'].items():
+                idx = int(k)
+                self.adapter_bank.adapters[idx] = {'scale': torch.nn.Parameter(v['scale'].to(self.device)), 'shift': torch.nn.Parameter(v['shift'].to(self.device))}
+        # Optionally apply anchor to backbone
+        if 'opt_param_dict' in payload and payload['opt_param_dict']:
+            try:
+                # apply anchor fully or blended
+                for name, param in self.model.named_parameters():
+                    if name in payload['opt_param_dict']:
+                        anchor = payload['opt_param_dict'][name].to(param.device)
+                        if blend >= 1.0:
+                            param.data.copy_(anchor)
+                        else:
+                            param.data.mul_(1.0 - blend).add_(anchor * blend)
+            except Exception as e:
+                self.logger.warning(f"Failed to apply anchor params: {e}")
+
+        return payload
+
+    def auto_apply_best_task_memory(self, threshold: float = 0.8):
+        """Search saved task memories by fingerprint and apply best match if above threshold.
+
+        Returns True if an adapter/anchor was applied.
+        """
+        try:
+            names = self.ewc.list_task_memories()
+        except Exception:
+            return False
+
+        if not names:
+            return False
+
+        # Compute current fingerprint
+        try:
+            fp = self.telemetry_buffer.mean(dim=0)
+            fp_vec = fp.flatten().float()
+            fp_norm = fp_vec / (fp_vec.norm(p=2) + 1e-9)
+        except Exception:
+            return False
+
+        best_name = None
+        best_score = -1.0
+
+        for name in names:
+            try:
+                payload = self.ewc.load_task_memory(name)
+                meta = payload.get('meta', {})
+                other_fp = meta.get('fingerprint', None)
+                if other_fp is None:
+                    continue
+                other_vec = torch.tensor(other_fp, dtype=torch.float32, device=fp_vec.device)
+                other_norm = other_vec / (other_vec.norm(p=2) + 1e-9)
+                score = torch.nn.functional.cosine_similarity(fp_norm.unsqueeze(0), other_norm.unsqueeze(0)).item()
+                if score > best_score:
+                    best_score = score
+                    best_name = name
+            except Exception:
+                continue
+
+        if best_name and best_score >= threshold:
+            self.logger.info(f"🔍 Best task memory match: {best_name} (score={best_score:.3f}) — applying")
+            # Apply adapters and optionally anchor
+            self.apply_task_memory(best_name, blend=1.0)
+            return True
+
+        return False
              

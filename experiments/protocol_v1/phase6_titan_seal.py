@@ -62,7 +62,7 @@ def generate_artifacts(history, stats, status):
         ax1.set_ylabel("Loss")
         ax1.legend()
         ax1.grid(True, alpha=0.3)
-        ax1.text(bifurcation + 2, max(history['loss'])*0.8, 'Physics Change (Tau=30)', fontsize=9)
+        ax1.text(bifurcation + 2, max(history['loss'])*0.8, 'Physics Change (Tau=100)', fontsize=9)
         
         # Panel 2: Plasticity (Learning Rate)
         ax2.plot(steps, history['lr'], color='#27ae60', label='Neuroplasticity (Learning Rate)')
@@ -210,7 +210,7 @@ def run_titan_protocol():
         # A. Inject Anomaly
         if step == BIFURCATION_POINT:
             logger.info("   ⚠️  BIFURCATION EVENT: Shifting Chaos Parameters (tau 17 -> 30)")
-            generator.tau = 30 # Deep Chaos
+            generator.tau = 100 # Deep Chaos
             generator.history = deque([1.2] * 200, maxlen=200) # Reset history buffer
             
         # B. Generate Live Data
@@ -234,7 +234,7 @@ def run_titan_protocol():
             
         # D. Metrics
         metrics = adapter.get_metrics()
-        loss = metrics.get('loss', 0.0)
+        loss = metrics.get('avg_recent_loss', 0.0)
         # Handle tensor or float
         if isinstance(loss, torch.Tensor): loss = loss.item()
         
