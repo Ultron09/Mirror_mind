@@ -16,6 +16,10 @@ from pathlib import Path
 import json
 from datetime import datetime
 import sys
+import logging
+
+# Disable logging to avoid Windows encoding issues
+logging.disable(logging.CRITICAL)
 
 
 class MemoryStressTester:

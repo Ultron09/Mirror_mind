@@ -14,6 +14,10 @@ import numpy as np
 from pathlib import Path
 import json
 from datetime import datetime
+import logging
+
+# Disable logging to avoid Windows encoding issues
+logging.disable(logging.CRITICAL)
 
 
 class SurvivalScenarioTester:
@@ -284,16 +288,32 @@ class SurvivalScenarioTester:
         print(f"RESULTS: {self.results['tests_passed']} PASSED | {self.results['tests_failed']} FAILED")
         print("="*70)
         
-        # Save results
+        # Save results with proper JSON serialization
         results_dir = Path(__file__).parent.parent / 'results'
         results_dir.mkdir(parents=True, exist_ok=True)
         results_file = results_dir / 'survival_scenario_test_results.json'
         
+        # Convert any non-serializable types
+        clean_results = self._make_json_serializable(self.results)
+        
         with open(results_file, 'w') as f:
-            json.dump(self.results, f, indent=2)
+            json.dump(clean_results, f, indent=2, default=str)
         
         print(f"\nResults saved to: {results_file}")
         return self.results
+    
+    def _make_json_serializable(self, obj):
+        """Convert non-serializable objects to serializable types."""
+        if isinstance(obj, dict):
+            return {k: self._make_json_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._make_json_serializable(item) for item in obj]
+        elif isinstance(obj, bool):
+            return str(obj)
+        elif isinstance(obj, (int, float, str, type(None))):
+            return obj
+        else:
+            return str(obj)
 
 
 if __name__ == '__main__':

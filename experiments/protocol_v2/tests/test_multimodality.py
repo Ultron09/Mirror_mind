@@ -15,6 +15,10 @@ from pathlib import Path
 import json
 from datetime import datetime
 from typing import Dict
+import logging
+
+# Disable logging to avoid Windows encoding issues
+logging.disable(logging.CRITICAL)
 
 
 class MultiModalityTester:
