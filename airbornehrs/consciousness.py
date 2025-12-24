@@ -139,16 +139,19 @@ class ConsciousnessCore:
         """Update running statistics of error for anomaly detection."""
         current_error = error.mean().item()
         
-        # Exponential moving average
+        # Exponential moving average for mean
         self.error_mean = self.error_ewma * self.error_mean + (1 - self.error_ewma) * current_error
         
-        # Compute std with running variance
+        # Compute std with running variance - initialized properly
         if not hasattr(self, '_error_variance'):
-            self._error_variance = 0.0
+            self._error_variance = 1.0  # Start with 1.0 instead of 0.0 to avoid freezing
         
+        # Variance computed using OLD mean (before update) for Welford's algorithm
         variance_increment = (current_error - self.error_mean) ** 2
         self._error_variance = self.error_ewma * self._error_variance + (1 - self.error_ewma) * variance_increment
-        self.error_std = max(np.sqrt(self._error_variance), 1e-6)
+        
+        # Std dev: must be at least 1e-4 to prevent division by zero in surprise calc
+        self.error_std = max(np.sqrt(self._error_variance), 1e-4)
     
     def _compute_surprise(self, error: torch.Tensor) -> float:
         """

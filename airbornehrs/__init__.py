@@ -89,6 +89,59 @@ def __getattr__(name):
     elif name == 'SelfAwarenessMonitor':
         from .consciousness import SelfAwarenessMonitor
         return SelfAwarenessMonitor
+    # === V2.0: State-of-the-art Self-Awareness Framework ===
+    elif name == 'HumanLikeSelfAwarenessWrapper':
+        from .self_awareness_v2 import HumanLikeSelfAwarenessWrapper
+        return HumanLikeSelfAwarenessWrapper
+    elif name == 'MetaCognitiveAwarenessEngine':
+        from .self_awareness_v2 import MetaCognitiveAwarenessEngine
+        return MetaCognitiveAwarenessEngine
+    elif name == 'MetaCognitiveState':
+        from .self_awareness_v2 import MetaCognitiveState
+        return MetaCognitiveState
+    elif name == 'ConfidenceSignal':
+        from .self_awareness_v2 import ConfidenceSignal
+        return ConfidenceSignal
+    elif name == 'CompetenceSignal':
+        from .self_awareness_v2 import CompetenceSignal
+        return CompetenceSignal
+    elif name == 'AdaptiveLearningController':
+        from .self_awareness_v2 import AdaptiveLearningController
+        return AdaptiveLearningController
+    elif name == 'SelfImprovementPlanner':
+        from .self_awareness_v2 import SelfImprovementPlanner
+        return SelfImprovementPlanner
+    elif name == 'AdaptiveAttentionMechanism':
+        from .self_awareness_v2 import AdaptiveAttentionMechanism
+        return AdaptiveAttentionMechanism
+    elif name == 'OutOfDistributionDetector':
+        from .self_awareness_v2 import OutOfDistributionDetector
+        return OutOfDistributionDetector
+    elif name == 'MirrorMindWithSelfAwareness':
+        from .integration_guide import MirrorMindWithSelfAwareness
+        return MirrorMindWithSelfAwareness
+    elif name == 'MultiTaskSelfAwareLearner':
+        from .integration_guide import MultiTaskSelfAwareLearner
+        return MultiTaskSelfAwareLearner
+    # === PRESETS SYSTEM ===
+    elif name == 'PRESETS':
+        from .presets import PRESETS
+        return PRESETS
+    elif name == 'Preset':
+        from .presets import Preset
+        return Preset
+    elif name == 'PresetManager':
+        from .presets import PresetManager
+        return PresetManager
+    elif name == 'load_preset':
+        from .presets import load_preset
+        return load_preset
+    elif name == 'list_presets':
+        from .presets import list_presets
+        return list_presets
+    elif name == 'compare_presets':
+        from .presets import compare_presets
+        return compare_presets
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
@@ -114,5 +167,24 @@ __all__ = [
     'ConsciousnessCore',
     'AttentionMechanism',
     'IntrinisicMotivation',
-    'SelfAwarenessMonitor'
+    'SelfAwarenessMonitor',
+    # === V2.0: State-of-the-art Self-Awareness Framework ===
+    'HumanLikeSelfAwarenessWrapper',
+    'MetaCognitiveAwarenessEngine',
+    'MetaCognitiveState',
+    'ConfidenceSignal',
+    'CompetenceSignal',
+    'AdaptiveLearningController',
+    'SelfImprovementPlanner',
+    'AdaptiveAttentionMechanism',
+    'OutOfDistributionDetector',
+    'MirrorMindWithSelfAwareness',
+    'MultiTaskSelfAwareLearner',
+    # === PRESETS SYSTEM ===
+    'PRESETS',
+    'Preset',
+    'PresetManager',
+    'load_preset',
+    'list_presets',
+    'compare_presets',
 ]

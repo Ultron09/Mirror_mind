@@ -361,7 +361,7 @@ class AdaptiveFramework(nn.Module):
                     ewc_lambda=0.4,
                     consolidation_criterion=consolidation_criterion
                 )
-                self.logger.info(f"🧠 Using Unified Memory Handler (method={memory_type}, consolidation={consolidation_criterion})")
+                self.logger.info(f"[BRAIN] Using Unified Memory Handler (method={memory_type}, consolidation={consolidation_criterion})")
             else:
                 # Fall back to legacy EWC
                 self.ewc = EWCHandler(self.model, ewc_lambda=0.4)
@@ -378,7 +378,7 @@ class AdaptiveFramework(nn.Module):
                 capacity=config.feedback_buffer_size,
                 temperature=getattr(config, 'replay_priority_temperature', 0.6)
             )
-            self.logger.info("⚡ Prioritized replay enabled")
+            self.logger.info("[REPLAY] Prioritized replay enabled")
         else:
             self.prioritized_buffer = None
         
@@ -392,7 +392,8 @@ class AdaptiveFramework(nn.Module):
         )
         
         # 7. CONSCIOUSNESS LAYER (V7.0 - Self-Aware Learning)
-        enable_consciousness = getattr(config, 'enable_consciousness', True)
+        # BUG FIX #12: Default to False for backward compatibility
+        enable_consciousness = getattr(config, 'enable_consciousness', False)
         if enable_consciousness:
             self.consciousness = ConsciousnessCore(
                 model=self.model,
@@ -509,11 +510,11 @@ class AdaptiveFramework(nn.Module):
         try:
             from .adapters import AdapterBank
             self.adapter_bank = AdapterBank(num_layers=self.num_tracked_layers, device=self.device)
-            self.logger.info(f"🔌 AdapterBank initialized for {self.num_tracked_layers} layers.")
+            self.logger.info(f"[ADAPTER] AdapterBank initialized for {self.num_tracked_layers} layers.")
         except Exception as e:
             self.adapter_bank = None
             self.logger.warning(f"AdapterBank initialization failed: {e}")
-        self.logger.info(f"⚡ Fast Telemetry Bus established for {idx} layers.")
+        self.logger.info(f"[TELEMETRY] Fast Telemetry Bus established for {idx} layers.")
 
     def _generate_fast_hook(self, layer_idx):
         def hook(module, inputs):
@@ -773,7 +774,7 @@ class AdaptiveFramework(nn.Module):
                 # Use a fairly high similarity threshold for auto-apply
                 applied = self.auto_apply_best_task_memory(threshold=0.85)
                 if applied:
-                    self.logger.info("🔎 Adapter auto-applied from TaskMemory (novelty match).")
+                    self.logger.info("[ADAPTER] Adapter auto-applied from TaskMemory (novelty match).")
             except Exception as e:
                 self.logger.debug(f"Auto-retrieval failed: {e}")
             
@@ -781,6 +782,8 @@ class AdaptiveFramework(nn.Module):
         else:
             mode = "NORMAL"
             apply_ewc = True
+            plasticity_gate = 1.0  # Initialize for NORMAL mode (will be modulated by Active Shield)
+            block_reptile = False  # Initialize for NORMAL mode
             
             # Use dynamic consolidation scheduler for NORMAL mode too
             trigger_consolidation, reason = self.consolidation_scheduler.should_consolidate(
@@ -847,7 +850,7 @@ class AdaptiveFramework(nn.Module):
         # Override consolidation trigger if consciousness urgency is high
         if consciousness_urgency > 0.8:
             trigger_consolidation = True
-            self.logger.info(f"🧠 Consciousness Override: Consolidation urgency={consciousness_urgency:.2f}")
+            self.logger.info(f"[CONSCIOUSNESS] Consciousness Override: Consolidation urgency={consciousness_urgency:.2f}")
             
             block_reptile = False
             
@@ -1167,7 +1170,7 @@ class AdaptiveFramework(nn.Module):
         use_prioritized = getattr(self.config, 'use_prioritized_replay', True) and hasattr(self, 'prioritized_buffer') and self.prioritized_buffer is not None
         
         self.logger.info(
-            f"💤 Dreaming: Consolidating {num_epochs} epochs from "
+            f"[DREAM] Dreaming: Consolidating {num_epochs} epochs from "
             f"{len(self.feedback_buffer.buffer)} memories (sampling={'prioritized' if use_prioritized else 'uniform'})..."
         )
         
@@ -1188,10 +1191,25 @@ class AdaptiveFramework(nn.Module):
                 # Uniform random sampling (classic experience replay)
                 samples = random.sample(self.feedback_buffer.buffer, batch_size)
             
+            # Safety check: Skip if samples is empty or invalid
+            if not samples or len(samples) == 0:
+                self.logger.warning("No samples returned from replay buffer, skipping epoch")
+                continue
+            
+            # Filter out samples with invalid tensors
+            valid_samples = [s for s in samples if s.input_data is not None and s.target is not None]
+            if not valid_samples:
+                self.logger.warning("No valid samples in replay batch, skipping epoch")
+                continue
+            
             # 3. Reconstruct Tensors & Move to Device
             # FIX: Using torch.cat (as you correctly have) to handle variable sizes
-            inputs = torch.cat([s.input_data for s in samples], dim=0).to(self.device)
-            targets = torch.cat([s.target for s in samples], dim=0).to(self.device)
+            try:
+                inputs = torch.cat([s.input_data for s in valid_samples], dim=0).to(self.device)
+                targets = torch.cat([s.target for s in valid_samples], dim=0).to(self.device)
+            except RuntimeError as e:
+                self.logger.warning(f"Failed to concatenate tensors in replay: {e}, skipping epoch")
+                continue
             
             # 4. The Sync Step: Call train_step()
             # CRITICAL FIX: We must pass enable_dream=False here.
@@ -1202,7 +1220,7 @@ class AdaptiveFramework(nn.Module):
             replay_losses.append(metrics['loss'])
             
         avg_loss = np.mean(replay_losses) if replay_losses else 0.0
-        self.logger.info(f"✨ Dream Complete. Avg Replay Loss: {avg_loss:.4f}")
+        self.logger.info(f"[DREAM] Dream Complete. Avg Replay Loss: {avg_loss:.4f}")
         
         return {'replay_loss': avg_loss}
 
@@ -1260,7 +1278,7 @@ class AdaptiveFramework(nn.Module):
                 import numpy as _np
                 # Save as object arrays to preserve structure
                 _np.savez_compressed(str(dbg_path), trace=serial_trace)
-                self.logger.info(f"    🔍 Saved trace bundle: {dbg_path}")
+                self.logger.info(f"    [TRACE] Saved trace bundle: {dbg_path}")
         except Exception:
             pass
 
@@ -1290,7 +1308,7 @@ class AdaptiveFramework(nn.Module):
         # This protects the "Pre-trained Brain" from instant forgetting.
         if hasattr(self, 'ewc'):
             self.ewc.lock_for_ttt(strength=500.0)
-            self.logger.info(f"🛡️ Safety Tether auto-engaged (Strength: 500.0) for {path}")
+            self.logger.info(f"[SAFETY] Safety Tether auto-engaged (Strength: 500.0) for {path}")
             
         self.logger.info(f"Checkpoint loaded from {path}")
 
@@ -1378,7 +1396,7 @@ class AdaptiveFramework(nn.Module):
                 continue
 
         if best_name and best_score >= threshold:
-            self.logger.info(f"🔍 Best task memory match: {best_name} (score={best_score:.3f}) — applying")
+            self.logger.info(f"[MEMORY] Best task memory match: {best_name} (score={best_score:.3f}) — applying")
             # Apply adapters and optionally anchor
             self.apply_task_memory(best_name, blend=1.0)
             return True

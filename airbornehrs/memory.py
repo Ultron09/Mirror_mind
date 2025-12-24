@@ -182,13 +182,17 @@ class UnifiedMemoryHandler:
                     anchor = self.anchor.get(name, p.clone().detach())
                     
                     # Denominator: quadratic distance from anchor + damping
-                    denom = (p.data - anchor).pow(2) + self.si_xi
+                    # BUG FIX #2: Add epsilon BEFORE division to prevent NaN
+                    delta = (p.data - anchor).pow(2)
+                    denom = delta + self.si_xi  # si_xi = 1e-3 provides safe base
                     
-                    # Compute omega element-wise
-                    try:
-                        new_omega = s / denom
-                    except Exception:
-                        new_omega = torch.zeros_like(p)
+                    # Compute omega element-wise with numerical safety
+                    # Add small epsilon to prevent division by zero
+                    denom = torch.clamp(denom, min=1e-8)
+                    new_omega = s / denom
+                    
+                    # Remove any NaNs/Infs that slipped through
+                    new_omega = torch.nan_to_num(new_omega, nan=0.0, posinf=1e6, neginf=0.0)
                     
                     # Clamp for numerical stability
                     self.omega[name] = new_omega.clamp(min=0.0, max=1e6)
