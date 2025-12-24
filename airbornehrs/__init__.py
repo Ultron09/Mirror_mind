@@ -28,6 +28,8 @@ __author__ = "Suryaansh Prithvijit Singh"
 def __getattr__(name):
     if name == 'AdaptiveFramework':
         from .core import AdaptiveFramework
+    elif name == 'MirrorMindSystem':
+        from .integration import MirrorMindSystem, create_mirrorming_system
         return AdaptiveFramework
     elif name == 'AdaptiveFrameworkConfig':
         from .core import AdaptiveFrameworkConfig

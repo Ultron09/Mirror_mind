@@ -20,8 +20,8 @@ class EWCHandler:
         SOTA FIX: Calculates Fisher Information using the internal Replay Buffer.
         Triggered automatically when the model detects a domain shift.
         """
-        if len(feedback_buffer.buffer) < 10:
-            self.logger.warning("⚠️ EWC: Buffer too empty to consolidate.")
+        if len(feedback_buffer.buffer) < 5:
+            self.logger.warning("⚠️ EWC: Buffer too small to consolidate (need at least 5 samples).")
             return
 
         self.logger.info("🧠 EWC: SURPRISE DETECTED. Locking memories from buffer...")
@@ -52,6 +52,16 @@ class EWCHandler:
             output = self.model(inp)
             if hasattr(output, 'logits'): output = output.logits
             elif isinstance(output, tuple): output = output[0]
+            
+            # For Fisher computation, we need matching shapes
+            # If target is class indices [N] but output is logits [N, C], convert to one-hot
+            if target.dim() == 1 and output.dim() == 2:
+                # Classification case
+                num_classes = output.shape[1]
+                target = torch.nn.functional.one_hot(target, num_classes=num_classes).float()
+            elif target.dim() == 1 and output.dim() == 1:
+                # Regression case - unsqueeze target for MSELoss
+                target = target.unsqueeze(-1)
             
             # We use the log_likelihood (or MSE equivalent) for Fisher
             loss = torch.nn.functional.mse_loss(output, target)
