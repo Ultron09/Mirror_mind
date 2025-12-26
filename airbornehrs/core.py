@@ -402,7 +402,7 @@ class AdaptiveFramework(nn.Module):
                 awareness_buffer_size=getattr(config, 'consciousness_buffer_size', 5000),
                 novelty_threshold=getattr(config, 'novelty_threshold', 2.0)
             )
-            self.logger.info("🧠 Consciousness layer enabled (self-aware learning)")
+            self.logger.info("[CONSCIOUSNESS] Consciousness layer enabled (self-aware learning)")
             
             # Attention mechanism (learns which features matter)
             if getattr(config, 'use_attention', True):
@@ -411,7 +411,7 @@ class AdaptiveFramework(nn.Module):
                     num_heads=config.num_heads,
                     learned=True
                 ).to(self.device)
-                self.logger.info("👁️ Attention mechanism enabled (feature importance learning)")
+                self.logger.info("[ATTENTION] Attention mechanism enabled (feature importance learning)")
             else:
                 self.attention = None
             
@@ -423,13 +423,13 @@ class AdaptiveFramework(nn.Module):
                     novelty_weight=0.3,
                     learning_progress_weight=0.2
                 )
-                self.logger.info("🎯 Intrinsic motivation enabled (curiosity-driven learning)")
+                self.logger.info("[MOTIVATION] Intrinsic motivation enabled (curiosity-driven learning)")
             else:
                 self.intrinsic_motivation = None
             
             # Self-awareness monitor
             self.self_awareness = SelfAwarenessMonitor(moving_average_window=100)
-            self.logger.info("🔍 Self-awareness monitor enabled")
+            self.logger.info("[AWARENESS] Self-awareness monitor enabled")
         else:
             self.consciousness = None
             self.attention = None
@@ -474,7 +474,7 @@ class AdaptiveFramework(nn.Module):
             has_cl = shutil.which('cl') is not None
             
             if is_windows and not has_cl:
-                self.logger.warning("⚠️ Windows detected without C++ Compiler. Disabling torch.compile.")
+                self.logger.warning("[WARNING] Windows detected without C++ Compiler. Disabling torch.compile.")
             else:
                 try:
                     self.logger.info("🚀 Compiling model for speed...")
