@@ -95,6 +95,12 @@ def __getattr__(name):
     elif name == 'SelfAwarenessMonitor':
         from .consciousness import SelfAwarenessMonitor
         return SelfAwarenessMonitor
+    elif name == 'ConfigValidator':
+        from .validation import ConfigValidator, validate_config
+        return ConfigValidator
+    elif name == 'validate_config':
+        from .validation import validate_config
+        return validate_config
     # === V2.0: State-of-the-art Self-Awareness Framework ===
     elif name == 'HumanLikeSelfAwarenessWrapper':
         from .self_awareness_v2 import HumanLikeSelfAwarenessWrapper
