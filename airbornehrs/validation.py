@@ -182,7 +182,7 @@ class ConfigValidator:
             self.logger.info("=" * 60)
 
 
-def validate_config(config: AdaptiveFrameworkConfig, raise_on_error: bool = True) -> bool:
+def validate_config(config: AdaptiveFrameworkConfig, raise_on_error: bool = True):
     """
     Validate a config and optionally raise an exception on error.
     
@@ -191,7 +191,7 @@ def validate_config(config: AdaptiveFrameworkConfig, raise_on_error: bool = True
         raise_on_error: If True, raise ValueError on validation errors
         
     Returns:
-        True if valid, False otherwise
+        Tuple of (is_valid, error_list, warning_list) or just is_valid if raise_on_error=True
         
     Raises:
         ValueError: If raise_on_error=True and validation fails
@@ -205,7 +205,7 @@ def validate_config(config: AdaptiveFrameworkConfig, raise_on_error: bool = True
         error_msg = "\n".join(errors)
         raise ValueError(f"Config validation failed:\n{error_msg}")
     
-    return is_valid
+    return (is_valid, errors, warnings) if not raise_on_error else is_valid
 
 
 # Example usage
