@@ -21,6 +21,11 @@
 - 📊 [Package Evaluation](docs/assessment/AIRBORNEHRS_ASSESSMENT.md)
 - 🗺️ [Workspace Navigation](INDEX.md)
 
+**New: Improvement Roadmap (7.4 → 10/10)**
+- 📈 [Executive Summary](docs/assessment/EXECUTIVE_SUMMARY_7.4_TO_10.md) — High-level overview & timeline
+- 🔍 [Gap Analysis](docs/assessment/GAP_ANALYSIS_7.4_TO_10.md) — Why 7.4/10 and how to improve each point
+- ⚙️ [Tier 1 Implementation Guide](docs/assessment/TIER1_IMPLEMENTATION_GUIDE.md) — Step-by-step instructions for quick wins
+
 ---
 
 ## 0. Lab Charter
