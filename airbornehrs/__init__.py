@@ -28,8 +28,6 @@ __author__ = "Suryaansh Prithvijit Singh"
 def __getattr__(name):
     if name == 'AdaptiveFramework':
         from .core import AdaptiveFramework
-    elif name == 'MirrorMindSystem':
-        from .integration import MirrorMindSystem, create_mirrorming_system
         return AdaptiveFramework
     elif name == 'AdaptiveFrameworkConfig':
         from .core import AdaptiveFrameworkConfig
@@ -37,12 +35,18 @@ def __getattr__(name):
     elif name == 'IntrospectionModule':
         from .core import IntrospectionEngine
         return IntrospectionEngine
+    elif name == 'IntrospectionEngine':
+        from .core import IntrospectionEngine
+        return IntrospectionEngine
     elif name == 'EWCHandler':
-        from .ewc import EWCHandler  # Change to .ewc if you created ewc.py
+        from .ewc import EWCHandler
         return EWCHandler
     elif name == 'PerformanceMonitor':
         from .core import PerformanceMonitor
         return PerformanceMonitor
+    elif name == 'PerformanceSnapshot':
+        from .core import PerformanceSnapshot
+        return PerformanceSnapshot
     elif name == 'MetaController':
         from .meta_controller import MetaController
         return MetaController

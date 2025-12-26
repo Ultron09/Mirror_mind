@@ -92,9 +92,6 @@ class GradientAnalyzer:
 
 # ==================== ROBUST LR SCHEDULER ====================
 
-import numpy as np
-from collections import deque
-
 class DynamicLearningRateScheduler:
     """
     Statistically Adaptive Scheduler (No Magic Numbers).
@@ -134,8 +131,6 @@ class DynamicLearningRateScheduler:
         # How many standard deviations away is the current step?
         grad_z_score = (grad_norm - grad_mean) / grad_std
         loss_z_score = (loss - loss_mean) / loss_std
-        
-        # 3. ADAPTIVE LOGIC (Relative, not Absolute)
         
         # 3. ADAPTIVE LOGIC (Relative, not Absolute)
 

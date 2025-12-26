@@ -25,6 +25,7 @@ import os
 import platform
 import shutil
 from datetime import datetime
+import time
 
 # Import EWC, Memory, Meta-Controller, and Consciousness
 
@@ -436,7 +437,8 @@ class AdaptiveFramework(nn.Module):
             self.self_awareness = None
         
         self.optimizer = AdamW(self.model.parameters(), lr=config.learning_rate)
-         # 3. The "Meta-Controller" (Reptile Optimizer)
+        
+        # 3. The "Meta-Controller" (Reptile Optimizer)
         # FIX A: Initialize MetaController for Reptile integration
         self.meta_controller = MetaController(self, MetaControllerConfig(
             use_reptile=True,

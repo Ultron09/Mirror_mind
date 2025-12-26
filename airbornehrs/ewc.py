@@ -20,7 +20,7 @@ class EWCHandler:
         SOTA FIX: Calculates Fisher Information using the internal Replay Buffer.
         Triggered automatically when the model detects a domain shift.
         """
-        if len(feedback_buffer.buffer) < 5:
+        if feedback_buffer is None or len(feedback_buffer.buffer) < 5:
             self.logger.warning("⚠️ EWC: Buffer too small to consolidate (need at least 5 samples).")
             return
 

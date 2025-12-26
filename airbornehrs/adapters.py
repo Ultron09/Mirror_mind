@@ -162,8 +162,15 @@ class AdapterBank:
     def parameters(self):
         """Return an iterator over adapter parameters for optimizers."""
         for v in self.adapters.values():
-            yield v['scale']
-            yield v['shift']
+            if v.get('type') == 'film':
+                if 'scale' in v and isinstance(v['scale'], nn.Parameter):
+                    yield v['scale']
+                if 'shift' in v and isinstance(v['shift'], nn.Parameter):
+                    yield v['shift']
+            elif v.get('type') == 'bneck':
+                for param_name in ['Wdown', 'Wup', 'bdown', 'bup']:
+                    if param_name in v and isinstance(v[param_name], nn.Parameter):
+                        yield v[param_name]
 
     def get_adapter(self, idx: int) -> Dict[str, torch.Tensor]:
         return self.adapters.get(idx, None)
