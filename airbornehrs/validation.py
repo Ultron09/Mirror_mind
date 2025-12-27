@@ -29,6 +29,13 @@ class ConfigValidator:
         Returns:
             Tuple of (is_valid, error_list, warning_list)
         """
+        # Type validation: ensure config is not None
+        if config is None:
+            return False, ["AdaptiveFrameworkConfig cannot be None"], []
+        
+        if not isinstance(config, AdaptiveFrameworkConfig):
+            return False, [f"Expected AdaptiveFrameworkConfig, got {type(config)}"], []
+        
         self.errors = []
         self.warnings = []
         

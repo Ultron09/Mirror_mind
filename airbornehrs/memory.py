@@ -140,9 +140,11 @@ class UnifiedMemoryHandler:
                     
                     # Accumulate: s_i += -g_i * delta_theta_i (element-wise)
                     # Negative gradient direction * parameter movement = importance
-                    try:
-                        self.omega_accum[name] = self.omega_accum[name] + (-g * delta)
-                    except Exception as e:
+                    # Handle case where g could be None or zero
+                    if g is not None and not torch.all(g == 0):
+                        try:
+                            self.omega_accum[name] = self.omega_accum[name] + (-g * delta)
+                        except Exception as e:
                         self.logger.debug(f"SI accumulation failed for {name}: {e}")
         
         except Exception as e:

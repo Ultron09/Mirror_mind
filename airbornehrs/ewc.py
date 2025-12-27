@@ -79,8 +79,11 @@ class EWCHandler:
             # Smooth with previous fisher if available
             if name in self.fisher_dict:
                 fisher[name] = alpha * self.fisher_dict[name] + (1.0 - alpha) * fisher[name]
-            # Clamp to avoid zero or extreme values
+            # Clamp to avoid zero or extreme values, and check for NaN
             fisher[name] = fisher[name].clamp(min=1e-8, max=1e9)
+            if torch.isnan(fisher[name]).any():
+                self.logger.warning(f"NaN detected in Fisher info for {name}, replacing with 1e-8")
+                fisher[name] = torch.where(torch.isnan(fisher[name]), torch.tensor(1e-8, device=fisher[name].device), fisher[name])
 
         self.fisher_dict = fisher
         self.model.train() # Resume training mode

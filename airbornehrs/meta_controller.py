@@ -122,15 +122,23 @@ class DynamicLearningRateScheduler:
 
         # 1. CALCULATE STATISTICS (Self-Baseline)
         grad_mean = np.mean(self.grad_history)
-        grad_std = np.std(self.grad_history) + 1e-9 # Avoid div/0
+        grad_std = np.std(self.grad_history) + 1e-6 # Avoid div/0, increased epsilon for stability
         
         loss_mean = np.mean(self.loss_history)
-        loss_std = np.std(self.loss_history) + 1e-9
+        loss_std = np.std(self.loss_history) + 1e-6 # Increased epsilon for stability
         
         # 2. DETECT ANOMALIES (Z-Score)
         # How many standard deviations away is the current step?
-        grad_z_score = (grad_norm - grad_mean) / grad_std
-        loss_z_score = (loss - loss_mean) / loss_std
+        # Guard against division by zero with explicit checks
+        if grad_std > 1e-7:
+            grad_z_score = (grad_norm - grad_mean) / grad_std
+        else:
+            grad_z_score = 0.0
+        
+        if loss_std > 1e-7:
+            loss_z_score = (loss - loss_mean) / loss_std
+        else:
+            loss_z_score = 0.0
         
         # 3. ADAPTIVE LOGIC (Relative, not Absolute)
 
