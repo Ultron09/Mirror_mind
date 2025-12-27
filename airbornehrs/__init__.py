@@ -95,6 +95,34 @@ def __getattr__(name):
     elif name == 'SelfAwarenessMonitor':
         from .consciousness import SelfAwarenessMonitor
         return SelfAwarenessMonitor
+    # === Enhanced Consciousness V2: Human-Like Self-Awareness ===
+    elif name == 'EnhancedConsciousnessCore':
+        from .consciousness_v2 import EnhancedConsciousnessCore
+        return EnhancedConsciousnessCore
+    elif name == 'EmotionalState':
+        from .consciousness_v2 import EmotionalState
+        return EmotionalState
+    elif name == 'EmotionalSystem':
+        from .consciousness_v2 import EmotionalSystem
+        return EmotionalSystem
+    elif name == 'MetaCognition':
+        from .consciousness_v2 import MetaCognition
+        return MetaCognition
+    elif name == 'EpisodicMemory':
+        from .consciousness_v2 import EpisodicMemory
+        return EpisodicMemory
+    elif name == 'SelfModel':
+        from .consciousness_v2 import SelfModel
+        return SelfModel
+    elif name == 'Personality':
+        from .consciousness_v2 import Personality
+        return Personality
+    elif name == 'Introspection':
+        from .consciousness_v2 import Introspection
+        return Introspection
+    elif name == 'AdaptiveAwareness':
+        from .consciousness_v2 import AdaptiveAwareness
+        return AdaptiveAwareness
     elif name == 'ConfigValidator':
         from .validation import ConfigValidator, validate_config
         return ConfigValidator
