@@ -17,3 +17,5 @@ Results/
 DEPLOY.txt
 scripts/
 debug/
+tools/
+tests/
