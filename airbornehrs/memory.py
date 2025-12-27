@@ -145,7 +145,7 @@ class UnifiedMemoryHandler:
                         try:
                             self.omega_accum[name] = self.omega_accum[name] + (-g * delta)
                         except Exception as e:
-                        self.logger.debug(f"SI accumulation failed for {name}: {e}")
+                            self.logger.debug(f"SI accumulation failed for {name}: {e}")
         
         except Exception as e:
             self.logger.warning(f"SI path accumulation failed: {e}")
