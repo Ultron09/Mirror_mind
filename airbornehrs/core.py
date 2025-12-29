@@ -247,10 +247,12 @@ class PerformanceMonitor:
         if affine_modifiers is None: return 0.0
         
         if affine_modifiers.ndim > 1: affine_modifiers = affine_modifiers.mean(dim=0)
-        raw_scale, raw_shift = affine_modifiers[0], affine_modifiers[1]
-        
+        raw_scale = affine_modifiers[0].item()
+        raw_shift = affine_modifiers[1].item()
+
         if abs(raw_scale) < 1e-4 and abs(raw_shift) < 1e-4:
             return 0.0
+
 
         with torch.no_grad():
             for name, param in self.model.named_parameters():
@@ -502,6 +504,7 @@ class AdaptiveFramework(nn.Module):
         
         # 1. Forward Pass
         output, log_var, affine_modifiers = self.forward(input_data)
+
         
         # 2. Loss Calculation
         pred = output
@@ -581,6 +584,8 @@ class AdaptiveFramework(nn.Module):
                 # Features for consciousness
                 features = self.telemetry_buffer.detach()
                 metrics = self.consciousness.observe(input_data, target_data, pred, features=features)
+                self.consciousness.last_metrics = metrics
+
                 
                 cons_importance = metrics.get('importance', 1.0) # Used for replay priority
                 

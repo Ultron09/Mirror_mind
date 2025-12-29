@@ -17,9 +17,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import threading
+import torch
 
 # --- CONFIG ---
-VERSION = "1.0.3"
+VERSION = "1.0.5"
 AUTHOR = "Suryaansh Prithvijit Singh"
 ASCII_LOGO = """
  █████╗ ██╗██████╗ ██████╗  ██████╗ ██████╗ ███╗   ██╗███████╗
@@ -225,59 +226,232 @@ class ModuleChecker:
             results.append((name, path, success, message))
         return results
 
-
-# --- INTERACTIVE DEMO ---
+# --- INTERACTIVE DEMO (HUMAN-IN-THE-LOOP) ---
+# --- INTERACTIVE DEMO (HUMAN-IN-THE-LOOP + RAW CONSCIOUSNESS) ---
 class InteractiveDemo:
-    """Hands-on demonstration of framework capabilities"""
-    
+    """
+    Human-in-the-loop cognitive demo.
+    User controls reality.
+    System exposes internal consciousness when it reacts.
+    """
+
+    @staticmethod
+    def render_consciousness(console, raw):
+        if not raw:
+            console.print("[dim]Consciousness data unavailable[/dim]")
+            return
+
+        table = Table(
+            title="🧠 Raw Consciousness State",
+            box=box.SIMPLE,
+            show_header=True,
+            header_style="bold magenta"
+        )
+
+        table.add_column("Signal", style="cyan", no_wrap=True)
+        table.add_column("Value", style="green")
+
+        for k, v in raw.items():
+            if isinstance(v, torch.Tensor):
+                if v.numel() == 1:
+                    v = f"{v.item():.4f}"
+                else:
+                    v = f"Tensor(shape={tuple(v.shape)})"
+            elif isinstance(v, float):
+                v = f"{v:.4f}"
+            table.add_row(str(k), str(v))
+
+        console.print(table)
+
     @staticmethod
     def run_quick_demo():
-        """Run a quick demonstration"""
         if not HAS_RICH:
             print("\n[Demo requires Rich UI library]")
             return
-        
-        console.print("\n[bold cyan]🚀 Running Quick Demo...[/bold cyan]\n")
-        
+
+        console.clear()
+
+        console.print(
+            Panel(
+                "[bold cyan]🧠 MirrorMind — Interactive Cognitive Experiment[/bold cyan]\n\n"
+                "You are inside the learning loop.\n\n"
+                "Each step YOU decide what the world looks like.\n"
+                "The system adapts — and exposes its mind when stressed.\n\n"
+                "[bold]This runs until you exit.[/bold]",
+                title="🎮 Human-in-the-Loop Mode",
+                border_style="cyan"
+            )
+        )
+
         try:
             import torch
             import torch.nn as nn
             from airbornehrs.core import AdaptiveFramework
             from airbornehrs.presets import PRESETS
-            
-            # Create a tiny test model
-            model = nn.Sequential(
-                nn.Linear(10, 32),
-                nn.ReLU(),
-                nn.Linear(32, 1)
-            )
-            
-            # Initialize with fast preset
+
+            # -----------------------------
+            # Demo-specific aggressive config
+            # -----------------------------
             config = PRESETS.fast()
+            config.warmup_steps = 2
+            config.novelty_z_threshold = 0.5
+            config.survival_z_threshold = 1.0
+            config.panic_threshold = 0.8
+            config.enable_consciousness = True
+            config.evaluation_frequency = 1
+            config.dream_interval = 3
+
+            model = nn.Sequential(
+                nn.Linear(10, 64),
+                nn.ReLU(),
+                nn.Linear(64, 64),
+                nn.ReLU(),
+                nn.Linear(64, 1)
+            )
+
             framework = AdaptiveFramework(model, config)
-            
-            console.print("[green]✓[/green] Framework initialized")
-            
-            # Generate synthetic data
-            with Progress() as progress:
-                task = progress.add_task("[cyan]Training...", total=10)
-                
-                for i in range(10):
+
+            console.print("[green]✓ Cognitive core online[/green]")
+            console.print("[green]✓ Consciousness active[/green]")
+            console.print("[green]✓ Reflex thresholds lowered[/green]\n")
+
+            step = 0
+
+            # -----------------------------
+            # Interactive loop
+            # -----------------------------
+            while True:
+                console.rule(f"[bold cyan]STEP {step}[/bold cyan]")
+
+                choice = Prompt.ask(
+                    "[bold]Choose reality[/bold]",
+                    choices=["normal", "shift", "chaos", "freeze", "dream", "exit"],
+                    default="normal"
+                )
+
+                if choice == "exit":
+                    console.print("\n[bold green]👋 User exited cognitive experiment[/bold green]\n")
+                    break
+
+                # -----------------------------
+                # Environment regimes
+                # -----------------------------
+                if choice == "normal":
                     x = torch.randn(4, 10)
                     y = torch.randn(4, 1)
-                    
-                    metrics = framework.train_step(x, y)
-                    progress.update(task, advance=1)
-                    
-                    if i == 9:
-                        console.print(f"\n[green]Final Loss:[/green] {metrics['loss']:.4f}")
-                        console.print(f"[blue]Mode:[/blue] {metrics['mode']}")
-                        console.print(f"[yellow]Plasticity:[/yellow] {metrics['plasticity']:.2f}")
-            
-            console.print("\n[bold green]✅ Demo completed successfully![/bold green]")
-            
+                    regime = "STABLE ENVIRONMENT"
+
+                elif choice == "shift":
+                    x = torch.randn(4, 10) * 5
+                    y = torch.randn(4, 1)
+                    regime = "DOMAIN SHIFT"
+
+                elif choice == "chaos":
+                    x = torch.randn(4, 10) * torch.randn(1).abs()
+                    y = torch.randn(4, 1) * 3
+                    regime = "CHAOTIC INPUT"
+
+                elif choice == "freeze":
+                    x = torch.zeros(4, 10)
+                    y = torch.zeros(4, 1)
+                    regime = "SIGNAL FREEZE"
+
+                elif choice == "dream":
+                    console.print("[bold magenta]💤 Dreaming from memory buffer[/bold magenta]")
+                    framework.learn_from_buffer(batch_size=16, num_epochs=1)
+                    step += 1
+                    continue
+
+                console.print(f"[dim]Environment:[/dim] [bold]{regime}[/bold]")
+
+                # -----------------------------
+                # Training step
+                # -----------------------------
+                metrics = framework.train_step(x, y)
+
+                # -----------------------------
+                # Telemetry
+                # -----------------------------
+                console.print(
+                    f"[green]Loss[/green]: {metrics['loss']:.4f} | "
+                    f"[cyan]Z[/cyan]: {metrics['z_score']:.2f} | "
+                    f"[yellow]Mode[/yellow]: [bold]{metrics['mode']}[/bold] | "
+                    f"[magenta]Plasticity[/magenta]: {metrics['plasticity']:.2f}"
+                )
+
+                # -----------------------------
+                # Cognitive narration
+                # -----------------------------
+                if metrics["mode"] == "PANIC":
+                    console.print("[bold red]🚨 PANIC — system protecting stability[/bold red]")
+                elif metrics["mode"] == "SURVIVAL":
+                    console.print("[bold red]🛡 SURVIVAL — preserving core knowledge[/bold red]")
+                elif metrics["mode"] == "NOVELTY":
+                    console.print("[bold yellow]✨ NOVELTY — exploring unknown patterns[/bold yellow]")
+                elif metrics["mode"] == "NORMAL":
+                    console.print("[bold green]✓ NORMAL — learning stable[/bold green]")
+                elif metrics["mode"] == "BOOTSTRAP":
+                    console.print("[dim]Bootstrapping internal models[/dim]")
+
+                # -----------------------------
+                # AUTO-EXPOSE RAW CONSCIOUSNESS
+                # -----------------------------
+                raw = None
+                if framework.consciousness:
+                    raw = getattr(framework.consciousness, "last_metrics", None)
+
+                if raw and metrics["mode"] in {"PANIC", "NOVELTY", "SURVIVAL"}:
+                    console.print("[bold magenta]🧠 RAW CONSCIOUSNESS SPIKE[/bold magenta]")
+                    InteractiveDemo.render_consciousness(console, raw)
+
+                # -----------------------------
+                # Memory & meta signals
+                # -----------------------------
+                if len(framework.feedback_buffer.buffer) % 5 == 0:
+                    console.print("[blue]💾 Memory updated[/blue]")
+
+                if framework.meta_log_probs:
+                    console.print("[purple]🧠 Meta-policy updated[/purple]")
+
+                # -----------------------------
+                # Stabilize Z-score for demo
+                # -----------------------------
+                if len(framework.loss_history) < 30:
+                    framework.loss_history.append(metrics["mse"])
+
+                step += 1
+                time.sleep(0.1)
+
+            # -----------------------------
+            # Final state dump
+            # -----------------------------
+            console.rule("[bold cyan]FINAL SYSTEM STATE[/bold cyan]")
+
+            console.print(
+                Panel(
+                    f"""
+Total steps experienced : {step}
+Memory buffer size      : {len(framework.feedback_buffer.buffer)}
+Tracked layers          : {framework.num_tracked_layers}
+Consciousness           : ACTIVE
+Meta-controller         : ONLINE
+
+You did not train a model.
+You interacted with a cognitive system.
+                    """,
+                    border_style="cyan"
+                )
+            )
+
         except Exception as e:
-            console.print(f"\n[bold red]Demo failed:[/bold red] {e}")
+            console.print(
+                Panel(
+                    f"[bold red]SYSTEM FAILURE[/bold red]\n\n{e}",
+                    border_style="red"
+                )
+            )
+
+
 
 
 # --- RICH UI (ULTRA-ADVANCED) ---
