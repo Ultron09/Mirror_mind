@@ -19,7 +19,7 @@ from typing import Dict, List, Tuple, Optional
 import threading
 
 # --- CONFIG ---
-VERSION = "1.0.1"
+VERSION = "1.0.3"
 AUTHOR = "Suryaansh Prithvijit Singh"
 ASCII_LOGO = """
  █████╗ ██╗██████╗ ██████╗  ██████╗ ██████╗ ███╗   ██╗███████╗
@@ -476,7 +476,7 @@ prediction = adapter.predict(input_data, update=True, target=target)
 - `accuracy_focus()` - Maximum correctness
 - And 5 more...
 
-For full documentation: https://github.com/yourusername/airbornehrs
+For full documentation: https://github.com/Ultron09/Mirror_mind
     """
     
     console.print(Panel(Markdown(docs), title="📖 Documentation", border_style="cyan"))

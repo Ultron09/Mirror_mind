@@ -643,7 +643,14 @@ class AdaptiveFramework(nn.Module):
         
         if meta_step and len(self.meta_log_probs) > 0:
             scale = 50.0 if mode in ["PANIC", "SURVIVAL"] else 10.0
-            policy_loss = -self.meta_log_probs[-1] * (advantage.detach() * scale)
+            advantage_t = torch.tensor(
+            advantage,
+            device=self.device,
+            dtype=torch.float32
+             )
+
+            policy_loss = -self.meta_log_probs[-1] * (advantage_t * scale)
+
             policy_loss.backward()
             self.meta_optimizer.step()
             self.meta_log_probs.clear()
