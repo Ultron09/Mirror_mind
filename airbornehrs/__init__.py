@@ -72,30 +72,66 @@ def __getattr__(name):
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
-    # Core
-    'AdaptiveFramework', 'AdaptiveFrameworkConfig',
-    'IntrospectionEngine', 'PerformanceMonitor', 'PerformanceSnapshot',
-    
-    # Memory
-    'UnifiedMemoryHandler', 'PrioritizedReplayBuffer', 
-    'AdaptiveRegularization', 'DynamicConsolidationScheduler',
-    
-    # Meta Control
-    'MetaController', 'MetaControllerConfig', 
-    'GradientAnalyzer', 'DynamicLearningRateScheduler', 'CurriculumStrategy',
-    
-    # Production
-    'ProductionAdapter', 'InferenceMode',
-    
-    # Consciousness V2
-    'ConsciousnessCore', 'EnhancedConsciousnessCore', 
-    'EmotionalState', 'EmotionalSystem',
-    
-    # Self Awareness Wrapper
-    'HumanLikeSelfAwarenessWrapper', 'MetaCognitiveAwarenessEngine',
-    'MetaCognitiveState', 'ConfidenceSignal', 'CompetenceSignal',
-    'AdaptiveLearningController', 'SelfImprovementPlanner',
-    
-    # Presets & Validation
-    'PRESETS', 'Preset', 'validate_config', 'ConfigValidator'
+    # ==================== CORE ====================
+    'AdaptiveFramework',
+    'AdaptiveFrameworkConfig',
+    'IntrospectionEngine',
+    'PerformanceMonitor',
+    'PerformanceSnapshot',
+
+    # ==================== MEMORY ====================
+    'UnifiedMemoryHandler',
+    'PrioritizedReplayBuffer',
+    'AdaptiveRegularization',
+    'DynamicConsolidationScheduler',
+
+    # ==================== META CONTROLLER ====================
+    'MetaController',
+    'MetaControllerConfig',
+    'GradientAnalyzer',
+    'DynamicLearningRateScheduler',
+    'CurriculumStrategy',
+
+    # ==================== PRODUCTION ====================
+    'ProductionAdapter',
+    'InferenceMode',
+
+    # ==================== CONSCIOUSNESS (V2) ====================
+    'ConsciousnessCore',              # alias → EnhancedConsciousnessCore
+    'EnhancedConsciousnessCore',
+    'EmotionalState',
+    'EmotionalSystem',
+    'MetaCognition',
+    'EpisodicMemory',
+    'SelfModel',
+    'Personality',
+    'Introspection',
+    'AdaptiveAwareness',
+
+    # ==================== SELF-AWARENESS LAYER ====================
+    'HumanLikeSelfAwarenessWrapper',
+    'MetaCognitiveAwarenessEngine',
+    'MetaCognitiveState',
+    'ConfidenceSignal',
+    'CompetenceSignal',
+    'AdaptiveLearningController',
+    'SelfImprovementPlanner',
+    'AdaptiveAttentionMechanism',
+    'OutOfDistributionDetector',
+
+    # ==================== PRESETS ====================
+    'PRESETS',
+    'Preset',
+    'PresetManager',
+    'load_preset',
+    'list_presets',
+    'compare_presets',
+
+    # ==================== VALIDATION ====================
+    'ConfigValidator',
+    'validate_config',
+
+    # ==================== INTEGRATION ====================
+    'MirrorMindWithSelfAwareness',
+    'MultiTaskSelfAwareLearner',
 ]
