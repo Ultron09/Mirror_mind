@@ -1,22 +1,22 @@
 """
-Meta-Controller: Reptile-Based Dynamic Adaptation
-=================================================
+Meta-Controller: Reptile-Based Dynamic Adaptation (Production V2)
+=================================================================
 
 Implements the "Reptile" meta-learning algorithm (OpenAI) adapted for
 continuous online learning. This replaces brittle second-order MAML
 with a stable "Lookahead" optimization strategy.
 
-Algorithm:
-1. Train normally for k steps (Fast Weights)
-2. Update "Slow Weights" (Anchor) slightly towards Fast Weights
-3. Reset Fast Weights to interpolated value
+FEATURES:
+- Reptile "Lookahead" Optimizer (Fast/Slow weight interpolation)
+- Z-Score based Dynamic Learning Rate
+- Automated Curriculum Difficulty scaling
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import AdamW
-from typing import Tuple, Dict, List, Optional, Any
+from typing import Tuple, Dict, List, Optional, Any, Union
 import numpy as np
 from collections import deque
 import copy
@@ -122,28 +122,18 @@ class DynamicLearningRateScheduler:
 
         # 1. CALCULATE STATISTICS (Self-Baseline)
         grad_mean = np.mean(self.grad_history)
-        grad_std = np.std(self.grad_history) + 1e-6 # Avoid div/0, increased epsilon for stability
+        grad_std = np.std(self.grad_history) + 1e-6 
         
         loss_mean = np.mean(self.loss_history)
-        loss_std = np.std(self.loss_history) + 1e-6 # Increased epsilon for stability
+        loss_std = np.std(self.loss_history) + 1e-6 
         
         # 2. DETECT ANOMALIES (Z-Score)
-        # How many standard deviations away is the current step?
-        # Guard against division by zero with explicit checks
-        if grad_std > 1e-7:
-            grad_z_score = (grad_norm - grad_mean) / grad_std
-        else:
-            grad_z_score = 0.0
-        
-        if loss_std > 1e-7:
-            loss_z_score = (loss - loss_mean) / loss_std
-        else:
-            loss_z_score = 0.0
+        grad_z_score = (grad_norm - grad_mean) / grad_std
+        loss_z_score = (loss - loss_mean) / loss_std
         
         # 3. ADAPTIVE LOGIC (Relative, not Absolute)
 
         # A. SURPRISE DETECTED (Loss Spike > 1.5 Sigma) -> BOOST PLASTICITY
-        # PRIORITY FIX: Check this FIRST. High loss validates high gradients.
         if loss_z_score > 1.5:
             # Boost proportional to surprise
             boost = 1.0 + (loss_z_score * 0.1) 
@@ -152,7 +142,6 @@ class DynamicLearningRateScheduler:
         # B. EXPLOSION DETECTED (Grads > 2 Sigma) -> CUT LR
         # Only brake if Gradients are high but Loss is STABLE (Numerical Instability)
         elif grad_z_score > 2.0:
-            # Panic brake: Reduce proportional to severity
             reduction = 0.5 * (1.0 / grad_z_score) 
             self.current_lr *= max(0.1, reduction)
             
@@ -167,8 +156,8 @@ class DynamicLearningRateScheduler:
             param_group['lr'] = self.current_lr
             
         return self.current_lr
+        
     def get_lr(self) -> float:
-        """Return the current learning rate."""
         return self.current_lr
 
 
@@ -195,7 +184,6 @@ class CurriculumStrategy:
         difficulty = self.get_difficulty()
         
         # SAFETY CHECK: Only add noise to Floats (Images/Audio)
-        # Prevents crash on NLP Integers
         if torch.is_floating_point(batch):
             noise_level = difficulty * 0.1
             perturbed_batch = batch + torch.randn_like(batch) * noise_level
@@ -209,12 +197,6 @@ class CurriculumStrategy:
 class ReptileOptimizer:
     """
     Implements the Reptile 'Lookahead' update rule.
-    
-    Logic:
-    theta_new = theta_old + epsilon * (theta_fast - theta_old)
-    
-    This pulls the 'slow weights' towards the 'fast weights' learned
-    over the last k steps, providing stability and generalization.
     """
     
     def __init__(self, model: nn.Module, config: MetaControllerConfig):
@@ -240,15 +222,25 @@ class ReptileOptimizer:
             self._perform_update()
             
     def _clone_weights(self) -> Dict[str, torch.Tensor]:
-        """Deep copy current model weights"""
+        """Deep copy current model weights."""
+        target_model = self.model
+        if hasattr(self.model, '_orig_mod'):
+            target_model = self.model._orig_mod
+            
+        # We clone ALL state (including buffers like running_mean)
+        # to ensure the anchor is a valid snapshot.
         return {
             k: v.clone().detach() 
-            for k, v in self.model.state_dict().items()
+            for k, v in target_model.state_dict().items()
         }
         
     def _perform_update(self):
         """Performs the Reptile interpolation"""
-        current_weights = self.model.state_dict()
+        target_model = self.model
+        if hasattr(self.model, '_orig_mod'):
+            target_model = self.model._orig_mod
+
+        current_weights = target_model.state_dict()
         new_state_dict = {}
         
         epsilon = self.config.reptile_learning_rate
@@ -259,21 +251,30 @@ class ReptileOptimizer:
                     fast_param = current_weights[name]
                     
                     # Reptile Update Rule:
-                    # Anchor <- Anchor + epsilon * (Fast - Anchor)
-                    new_param = anchor_param + epsilon * (fast_param - anchor_param)
-                    
-                    new_state_dict[name] = new_param
+                    # Only interpolate FLOAT parameters/buffers. 
+                    # Integers (like num_batches_tracked) should be taken from fast weights directly.
+                    if anchor_param.is_floating_point():
+                        new_param = anchor_param + epsilon * (fast_param - anchor_param)
+                        new_state_dict[name] = new_param
+                    else:
+                        new_state_dict[name] = fast_param
         
-        # Apply updated weights to model (in-place copy to avoid strict partial loads)
+        # Apply updated weights to model
         with torch.no_grad():
+            # Update Parameters (Weights/Biases)
             for name, param in self.model.named_parameters():
                 if name in new_state_dict:
                     param.data.copy_(new_state_dict[name])
+            
+            # Update Buffers (Running Mean/Var) - handled via state_dict load if needed,
+            # but usually Reptile keeps buffers from fast path or interpolates.
+            # Here we let buffers stick to the Fast Weights by NOT forcing anchor buffers back
+            # unless we explicitly loaded a state_dict. 
+            # The loop above only updates `named_parameters`. 
+            # This is standard Reptile behavior: Weights interpolate, Buffers track latest.
         
         # Update Anchor for next cycle
         self.anchor_weights = self._clone_weights()
-        
-        # self.logger.debug(f"Reptile update performed (Step {self.step_counter})")
 
 
 # ==================== META-CONTROLLER ====================
@@ -284,7 +285,7 @@ class MetaController:
     """
     
     def __init__(self, 
-                 framework: 'AdaptiveFramework', 
+                 framework: Any, 
                  config: Optional[MetaControllerConfig] = None):
         if config is None:
             config = MetaControllerConfig()
@@ -296,8 +297,6 @@ class MetaController:
         self.gradient_analyzer = GradientAnalyzer(framework.model, config)
         self.lr_scheduler = DynamicLearningRateScheduler(framework.optimizer, config)
         self.curriculum = CurriculumStrategy(config)
-        
-        # Replaced MAML with Reptile
         self.reptile = ReptileOptimizer(framework.model, config)
         
         self.step_count = 0
@@ -305,12 +304,17 @@ class MetaController:
     def adapt(self,
               loss: float,
               gradients: Optional[Dict[str, torch.Tensor]] = None,
-              performance_metrics: Optional[Dict[str, float]] = None) -> Dict[str, float]:
+              performance_metrics: Optional[Dict[str, float]] = None,
+              external_grad_stats: Optional[Dict[str, float]] = None) -> Dict[str, float]:
         
         metrics = {}
         
         # 1. Analyze Gradients
-        grad_stats = self.gradient_analyzer.analyze()
+        if external_grad_stats is not None:
+             grad_stats = external_grad_stats
+        else:
+             grad_stats = self.gradient_analyzer.analyze()
+             
         metrics['gradient_stats'] = grad_stats
         
         # 2. Schedule Learning Rate
@@ -336,6 +340,3 @@ class MetaController:
             'current_lr': self.lr_scheduler.get_lr(),
             'reptile_active': self.config.use_reptile
         }
-
-if __name__ == "__main__":
-    print("Meta-Controller (Reptile Edition) loaded.")

@@ -171,8 +171,8 @@ def main():
         adaptive_lambda=True,  # Mode-aware penalty
         use_prioritized_replay=True,  # Emphasize hard examples
         enable_dreaming=True,
-        dream_interval=10
-    )
+        dream_interval=10,
+        )
     
     # Simple feedforward model
     model = nn.Sequential(

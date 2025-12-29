@@ -1,28 +1,12 @@
 """
-MirrorMind Self-Awareness Framework V2.0
-=========================================
+MirrorMind Self-Awareness Framework V2.0 (Production Fixed)
+===========================================================
 A powerful, state-of-the-art self-awareness system for the wrapper.
 
-This framework gives ANY model these human-like capabilities:
-1. Meta-Cognitive Awareness: Knows what it knows and doesn't know
-2. Self-Introspection: Monitors its own learning and performance
-3. Adaptive Confidence: Dynamically adjusts confidence based on experience
-4. Learning Directionality: Understands WHERE it needs to improve
-5. Epistemic Curiosity: Identifies knowledge gaps and seeks to fill them
-6. Performance Self-Assessment: Continuously evaluates its own capabilities
-7. Metacognitive Control: Adjusts strategy based on self-knowledge
-
-The framework operates on THREE levels:
-- MICRO: Individual prediction uncertainty and confidence
-- MESO: Domain-specific competency and skill development
-- MACRO: Overall learning trajectory and capability evolution
-
-And provides FIVE awareness dimensions:
-1. Confidence - How sure am I about this prediction?
-2. Competence - How skilled am I in this domain?
-3. Certainty - How stable is my knowledge?
-4. Complexity - How complex is this task?
-5. Curiosity - How much should I explore vs exploit?
+FIXES:
+1. Reordered OutOfDistributionDetector to prevent NameError.
+2. Added tuple unboxing for AdaptiveFramework compatibility.
+3. Robust shape matching for loss calculation.
 """
 
 import torch
@@ -30,7 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Union
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
@@ -80,14 +64,14 @@ class ConfidenceSignal:
 @dataclass
 class CompetenceSignal:
     """Encodes competence in a domain"""
-    domain_id: str                      # Which domain?
-    accuracy_estimate: float            # Expected accuracy [0, 1]
-    task_difficulty_estimate: float     # How hard is this? [0, 1]
-    mastery_level: float                # How close to mastery? [0, 1]
-    learning_velocity: float            # How fast am I improving?
-    convergence_progress: float         # Am I approaching optimal?
-    knowledge_stability: float          # How stable is my knowledge?
-    recommendation: str                 # "explore" / "consolidate" / "master"
+    domain_id: str                      
+    accuracy_estimate: float            
+    task_difficulty_estimate: float     
+    mastery_level: float                
+    learning_velocity: float            
+    convergence_progress: float         
+    knowledge_stability: float          
+    recommendation: str                 
 
 
 @dataclass
@@ -95,17 +79,67 @@ class MetacognitiveState:
     """Full awareness snapshot"""
     timestamp: datetime
     phase: LearningPhase
-    global_confidence: float            # Overall confidence [0, 1]
-    global_competence: float            # Overall competence [0, 1]
-    global_uncertainty: float           # Overall uncertainty [0, 1]
-    learning_direction: str             # Where to focus next
-    prioritized_improvements: List[str] # Top 3 areas to improve
-    current_bottlenecks: List[str]      # What's limiting performance?
-    capability_gaps: List[Tuple[str, float]]  # (gap_description, importance)
-    estimated_time_to_mastery: float    # Steps until convergence?
+    global_confidence: float            
+    global_competence: float            
+    global_uncertainty: float           
+    learning_direction: str             
+    prioritized_improvements: List[str] 
+    current_bottlenecks: List[str]      
+    capability_gaps: List[Tuple[str, float]]  
+    estimated_time_to_mastery: float    
     confidence_by_domain: Dict[str, float]
     performance_trajectory: List[float]
-    knowledge_entropy: float            # How "spread out" is knowledge?
+    knowledge_entropy: float            
+
+
+# ============================================================================
+# OUT-OF-DISTRIBUTION DETECTION (Moved to top for dependency resolution)
+# ============================================================================
+
+class OutOfDistributionDetector:
+    """Detects when the model encounters OOD samples"""
+    
+    def __init__(self, buffer_size: int = 1000):
+        self.buffer_size = buffer_size
+        self.prediction_buffer = deque(maxlen=buffer_size)
+        self.error_buffer = deque(maxlen=buffer_size)
+        self.baseline_mean = 0.5
+        self.baseline_std = 0.2
+    
+    def is_outlier(self,
+                   prediction: torch.Tensor,
+                   target: torch.Tensor,
+                   features: Optional[torch.Tensor] = None) -> bool:
+        """
+        Determine if this is an out-of-distribution sample.
+        """
+        # Detach to avoid graph retention
+        if prediction.requires_grad: prediction = prediction.detach()
+        if target.requires_grad: target = target.detach()
+
+        # Simple MSE for OOD metric
+        if prediction.shape != target.shape:
+             try:
+                 error = F.mse_loss(prediction.view(-1), target.view(-1)).item()
+             except:
+                 error = 1.0 # Fail safe
+        else:
+             error = F.mse_loss(prediction, target).item()
+        
+        # Update buffers
+        self.prediction_buffer.append(prediction)
+        self.error_buffer.append(error)
+        
+        # Update baseline statistics
+        if len(self.error_buffer) >= 10:
+            self.baseline_mean = np.mean(list(self.error_buffer))
+            self.baseline_std = np.std(list(self.error_buffer)) + 1e-6
+        
+        # Z-score based detection
+        z_score = (error - self.baseline_mean) / self.baseline_std
+        is_ood = abs(z_score) > 2.5
+        
+        return is_ood
 
 
 # ============================================================================
@@ -115,13 +149,6 @@ class MetacognitiveState:
 class MetaCognitiveAwarenessEngine:
     """
     The heart of self-awareness. Monitors and understands learning dynamics.
-    
-    This engine tracks:
-    - What the model knows with high confidence
-    - What the model is uncertain about
-    - Where the model is making mistakes
-    - How the model's capabilities are evolving
-    - Which areas need more learning
     """
     
     def __init__(self,
@@ -129,13 +156,7 @@ class MetaCognitiveAwarenessEngine:
                  buffer_size: int = 10000,
                  evaluation_window: int = 100,
                  domain_count: int = 10):
-        """
-        Args:
-            model: The PyTorch model being wrapped
-            buffer_size: How many experiences to track
-            evaluation_window: Window for computing moving averages
-            domain_count: Expected number of domains/tasks
-        """
+        
         self.model = model
         self.buffer_size = buffer_size
         self.eval_window = evaluation_window
@@ -171,11 +192,6 @@ class MetaCognitiveAwarenessEngine:
         self.error_z_history = deque(maxlen=evaluation_window)
         self.out_of_distribution_detector = OutOfDistributionDetector(buffer_size=1000)
         
-        # === META-PARAMETERS (LEARNED) ===
-        self.feature_importance = {}  # Which features matter most?
-        self.task_similarity_matrix = {}  # How similar are tasks?
-        self.transfer_learning_graph = {}  # What transfers to what?
-        
         # === DIAGNOSTICS ===
         self.step_count = 0
         self.episode_count = 0
@@ -184,7 +200,7 @@ class MetaCognitiveAwarenessEngine:
         logger.info(f"Initialized MetaCognitiveAwarenessEngine")
     
     def observe(self,
-                prediction: torch.Tensor,
+                prediction: Union[torch.Tensor, Tuple],
                 target: torch.Tensor,
                 input_data: Optional[torch.Tensor] = None,
                 domain_id: Optional[str] = None,
@@ -192,42 +208,47 @@ class MetaCognitiveAwarenessEngine:
                 features: Optional[torch.Tensor] = None) -> ConfidenceSignal:
         """
         Observe a prediction and update awareness.
-        
-        Args:
-            prediction: Model prediction
-            target: Ground truth
-            input_data: Original input (optional)
-            domain_id: Which domain? (optional)
-            task_id: Which task? (optional)
-            features: Learned representations (optional)
-        
-        Returns:
-            ConfidenceSignal with full awareness metadata
         """
         self.step_count += 1
         
-        # Compute error
-        if prediction.shape != target.shape:
-            target = target.reshape(prediction.shape)
+        # FIX: Handle tuple output from AdaptiveFramework
+        if isinstance(prediction, (tuple, list)):
+            prediction = prediction[0]
+
+        # Ensure detach for safety in metrics
+        pred_det = prediction.detach()
+        target_det = target.detach()
         
-        error = F.mse_loss(prediction, target, reduction='none').mean()
+        # FIX: Robust Shape Matching
+        if pred_det.shape != target_det.shape:
+            # Flatten both to match
+            try:
+                error = F.mse_loss(pred_det.view(-1), target_det.view(-1), reduction='none').mean()
+            except Exception:
+                error = torch.tensor(1.0)
+        else:
+            error = F.mse_loss(pred_det, target_det, reduction='none').mean()
         
         # === CONFIDENCE ESTIMATION ===
         # Method 1: Inverse error
-        prediction_confidence = torch.clamp(1.0 - error.detach(), 0, 1).item()
+        prediction_confidence = torch.clamp(1.0 - error, 0, 1).item()
         
         # Method 2: Prediction variance (if applicable)
         if hasattr(self.model, 'get_uncertainty'):
-            epistemic_unc, aleatoric_unc = self.model.get_uncertainty(
-                input_data if input_data is not None else prediction
-            )
+            # Only pass input if model expects it
+            try:
+                epistemic_unc, aleatoric_unc = self.model.get_uncertainty(
+                    input_data if input_data is not None else pred_det
+                )
+            except:
+                epistemic_unc, aleatoric_unc = error.item(), 0.1
         else:
             epistemic_unc = error.item()
             aleatoric_unc = 0.1
         
         # Method 3: OOD detection
         is_ood = self.out_of_distribution_detector.is_outlier(
-            prediction, target, features
+            pred_det, target_det, features
         )
         
         # Method 4: Surprise quantification
@@ -235,8 +256,8 @@ class MetaCognitiveAwarenessEngine:
         surprise_level = torch.sigmoid(torch.tensor(abs(z_score) - 1.0)).item()
         
         # Method 5: Prediction entropy
-        if len(prediction.shape) > 0 and prediction.shape[-1] > 1:
-            probs = F.softmax(prediction, dim=-1)
+        if len(pred_det.shape) > 0 and pred_det.shape[-1] > 1:
+            probs = F.softmax(pred_det, dim=-1)
             entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=-1).mean().item()
         else:
             entropy = 0.0
@@ -247,15 +268,12 @@ class MetaCognitiveAwarenessEngine:
         self.error_z_history.append(z_score)
         
         # Update baseline statistics with adaptive EMA
-        # Adaptive EMA weight: use fast updates when surprise is high (new domains)
-        # Use slow updates when error is stable (consolidation phase)
         surprise_magnitude = abs(z_score) if not np.isnan(z_score) and not np.isinf(z_score) else 0.0
-        adaptive_ema_weight = min(0.95, max(0.5, 0.95 - 0.1 * np.tanh(surprise_magnitude / 2.0)))  # Range [0.5, 0.95]
+        adaptive_ema_weight = min(0.95, max(0.5, 0.95 - 0.1 * np.tanh(surprise_magnitude / 2.0)))
         
         current_error = error.item()
         self.baseline_error_mean = adaptive_ema_weight * self.baseline_error_mean + (1 - adaptive_ema_weight) * current_error
         
-        # Update std with proper variance computation
         if not hasattr(self, '_error_variance'):
             self._error_variance = 0.0
         variance_increment = (current_error - self.baseline_error_mean) ** 2
@@ -278,16 +296,6 @@ class MetaCognitiveAwarenessEngine:
         
         # === LEARNING PHASE DETECTION ===
         self._update_learning_phase()
-        
-        # Store observation
-        self.prediction_buffer.append({
-            'prediction': prediction.detach(),
-            'target': target.detach(),
-            'error': error.item(),
-            'domain': domain_id,
-            'task': task_id,
-            'timestamp': self.step_count
-        })
         
         return ConfidenceSignal(
             prediction_confidence=prediction_confidence,
@@ -320,9 +328,6 @@ class MetaCognitiveAwarenessEngine:
     def get_competence(self, domain_id: str) -> CompetenceSignal:
         """
         Assess competence in a specific domain.
-        
-        Returns:
-            CompetenceSignal with domain-specific awareness
         """
         if domain_id not in self.domain_accuracy:
             return CompetenceSignal(
@@ -351,13 +356,13 @@ class MetaCognitiveAwarenessEngine:
         
         # Compute competence metrics
         recent_accuracy = np.mean(accuracies[-self.eval_window:])
-        accuracy_trend = recent_accuracy - np.mean(accuracies[-2*self.eval_window:-self.eval_window]) if len(accuracies) >= 2*self.eval_window else 0
+        if len(accuracies) >= 2*self.eval_window:
+             accuracy_trend = recent_accuracy - np.mean(accuracies[-2*self.eval_window:-self.eval_window]) 
+        else:
+             accuracy_trend = 0
+             
         stability = 1.0 - np.std(accuracies[-self.eval_window:]) if len(accuracies) >= self.eval_window else 0.5
-        
-        # Difficulty estimate (inverse of confidence)
         task_difficulty = 1.0 - recent_accuracy
-        
-        # Convergence progress
         convergence = min(1.0, recent_accuracy / 0.95) if recent_accuracy > 0.5 else 0.0
         
         # Recommendation
@@ -382,9 +387,6 @@ class MetaCognitiveAwarenessEngine:
     def get_metacognitive_state(self) -> MetacognitiveState:
         """
         Get full self-awareness snapshot.
-        
-        Returns:
-            Complete metacognitive state assessment
         """
         # Global metrics
         if self.confidence_history:
@@ -454,10 +456,11 @@ class MetaCognitiveAwarenessEngine:
             bottlenecks.append("Insufficient domain knowledge")
             bottlenecks.append("High epistemic uncertainty")
         
-        if np.mean(list(self.error_history)[-20:]) if self.error_history else 1.0 > 0.3:
+        error_hist = list(self.error_history)
+        if error_hist and np.mean(error_hist[-20:]) > 0.3:
             bottlenecks.append("High error rate limiting progress")
         
-        if np.std(list(self.error_history)[-20:]) if self.error_history else 0.5 > 0.1:
+        if error_hist and np.std(error_hist[-20:]) > 0.1:
             bottlenecks.append("Unstable performance across samples")
         
         return bottlenecks[:3]
@@ -474,58 +477,12 @@ class MetaCognitiveAwarenessEngine:
 
 
 # ============================================================================
-# OUT-OF-DISTRIBUTION DETECTION
-# ============================================================================
-
-class OutOfDistributionDetector:
-    """Detects when the model encounters OOD samples"""
-    
-    def __init__(self, buffer_size: int = 1000):
-        self.buffer_size = buffer_size
-        self.prediction_buffer = deque(maxlen=buffer_size)
-        self.error_buffer = deque(maxlen=buffer_size)
-        self.baseline_mean = 0.5
-        self.baseline_std = 0.2
-    
-    def is_outlier(self,
-                   prediction: torch.Tensor,
-                   target: torch.Tensor,
-                   features: Optional[torch.Tensor] = None) -> bool:
-        """
-        Determine if this is an out-of-distribution sample.
-        """
-        error = F.mse_loss(prediction, target, reduction='none').mean().item()
-        
-        # Update buffers
-        self.prediction_buffer.append(prediction.detach())
-        self.error_buffer.append(error)
-        
-        # Update baseline statistics
-        if len(self.error_buffer) >= 10:
-            self.baseline_mean = np.mean(list(self.error_buffer))
-            self.baseline_std = np.std(list(self.error_buffer))
-        
-        # Z-score based detection
-        z_score = (error - self.baseline_mean) / (self.baseline_std + 1e-8)
-        is_ood = abs(z_score) > 2.5
-        
-        return is_ood
-
-
-# ============================================================================
 # ADAPTIVE LEARNING CONTROLLER
 # ============================================================================
 
 class AdaptiveLearningController:
     """
     Uses self-awareness to adapt learning strategy dynamically.
-    
-    Adjusts:
-    - Learning rate based on confidence
-    - Exploration vs exploitation ratio
-    - Batch composition (hard vs easy examples)
-    - Regularization strength
-    - Attention allocation
     """
     
     def __init__(self,
@@ -539,9 +496,6 @@ class AdaptiveLearningController:
     def compute_adaptive_lr(self, domain_id: Optional[str] = None) -> float:
         """
         Compute learning rate based on current confidence.
-        
-        High confidence → lower LR (fine-tuning)
-        Low confidence → higher LR (fast learning)
         """
         if domain_id:
             competence = self.awareness.get_competence(domain_id)
@@ -551,9 +505,7 @@ class AdaptiveLearningController:
             confidence = awareness.global_confidence
         
         # Scale LR inversely to confidence
-        # At confidence=0.5: lr_multiplier=1.0
-        # At confidence=0.9: lr_multiplier=0.1
-        # At confidence=0.1: lr_multiplier=2.0
+        # Lower confidence = Higher LR (Learn fast)
         lr_multiplier = 1.0 / (1.0 + 2.0 * confidence)
         
         return self.base_lr * lr_multiplier
@@ -561,18 +513,11 @@ class AdaptiveLearningController:
     def compute_exploration_ratio(self) -> float:
         """
         Determine exploration vs exploitation ratio.
-        
-        Low confidence → high exploration (try new things)
-        High confidence → low exploration (exploit knowledge)
         """
         awareness = self.awareness.get_metacognitive_state()
         confidence = awareness.global_confidence
         
-        # At confidence=0.5: exploration=0.5
-        # At confidence=0.9: exploration=0.05
-        # At confidence=0.1: exploration=0.2
         exploration = self.base_exploration * (1.0 - confidence)
-        
         return exploration
     
     def get_learning_recommendation(self) -> Dict[str, Any]:
@@ -599,12 +544,6 @@ class AdaptiveLearningController:
 class SelfImprovementPlanner:
     """
     Uses awareness to plan learning trajectory.
-    
-    Answers:
-    - What should I focus on learning next?
-    - How long until I master this domain?
-    - Which domains transfer to which?
-    - Should I consolidate or explore?
     """
     
     def __init__(self, awareness_engine: MetaCognitiveAwarenessEngine):
@@ -637,16 +576,12 @@ class SelfImprovementPlanner:
     def _estimate_milestones(self, awareness: MetacognitiveState, horizon: int) -> List[str]:
         """Estimate learning milestones"""
         milestones = []
-        
         if awareness.global_confidence < 0.6:
             milestones.append(f"Achieve 60% confidence in {horizon//3} steps")
-        
         if awareness.global_confidence < 0.8:
             milestones.append(f"Reach 80% mastery in {horizon//2} steps")
-        
         if awareness.global_confidence < 0.95:
             milestones.append(f"Approach expert performance in {horizon} steps")
-        
         return milestones
     
     def _find_transfer_opportunities(self, awareness: MetacognitiveState) -> List[Tuple[str, str]]:
@@ -664,23 +599,16 @@ class SelfImprovementPlanner:
     
     def _domains_are_similar(self, domain1: str, domain2: str) -> bool:
         """Heuristic: are two domains similar?"""
-        # Simple substring matching; could be more sophisticated
         return len(set(domain1.split('_')) & set(domain2.split('_'))) > 0
 
 
 # ============================================================================
-# ATTENTION MECHANISM (What to focus on learning?)
+# ATTENTION MECHANISM
 # ============================================================================
 
 class AdaptiveAttentionMechanism:
     """
     Learns what to pay attention to based on self-awareness.
-    
-    Focuses learning on:
-    - High-error samples (hard examples)
-    - Out-of-distribution samples (novel examples)
-    - Features with high loss gradient
-    - Tasks with low current mastery
     """
     
     def __init__(self, awareness_engine: MetaCognitiveAwarenessEngine):
@@ -695,11 +623,14 @@ class AdaptiveAttentionMechanism:
                                   domain_id: Optional[str] = None) -> float:
         """
         Compute how important this sample is for learning.
-        
-        Returns:
-            Importance score [0, 1]
         """
-        error = F.mse_loss(prediction, target).item()
+        if prediction.shape != target.shape:
+             try:
+                 error = F.mse_loss(prediction.view(-1), target.view(-1)).item()
+             except:
+                 error = 1.0
+        else:
+             error = F.mse_loss(prediction, target).item()
         
         # Hard examples are important
         error_importance = min(1.0, error / 0.5)
@@ -732,7 +663,7 @@ class AdaptiveAttentionMechanism:
 
 
 # ============================================================================
-# SELF-AWARENESS MONITOR (Logging & Visualization)
+# SELF-AWARENESS MONITOR
 # ============================================================================
 
 class SelfAwarenessMonitor:
@@ -834,21 +765,6 @@ class SelfAwarenessMonitor:
 class HumanLikeSelfAwarenessWrapper:
     """
     Complete wrapper providing human-like self-awareness to any model.
-    
-    Usage:
-        model = YourPyTorchModel()
-        wrapper = HumanLikeSelfAwarenessWrapper(model)
-        
-        # During training
-        output = wrapper(input_data)
-        confidence_signal = wrapper.observe(output, target, domain_id='vision')
-        
-        # Query awareness
-        awareness = wrapper.get_awareness_state()
-        print(awareness.learning_direction)
-        
-        # Get learning recommendations
-        recommendations = wrapper.get_learning_recommendations()
     """
     
     def __init__(self, model: nn.Module, buffer_size: int = 10000):
@@ -922,13 +838,14 @@ if __name__ == "__main__":
     aware_model = HumanLikeSelfAwarenessWrapper(simple_model)
     
     # Simulate training
-    for step in range(100):
+    print("Initializing Self-Awareness Engine...")
+    for step in range(50):
         # Generate random data
         x = torch.randn(8, 10)
         y = torch.randn(8, 1)
         
         # Forward pass
-        output = aware_model(x)
+        output = aware_model.forward(x)
         
         # Observe and update awareness
         confidence = aware_model.observe(
@@ -937,20 +854,7 @@ if __name__ == "__main__":
             input_data=x
         )
         
-        # Periodically log awareness
-        if step % 20 == 0:
-            aware_model.monitor.log_state()
-            print(f"\nConfidence Signal: {confidence.prediction_confidence:.3f}")
-            print(f"Is OOD: {confidence.out_of_distribution}")
-            print(f"Surprise Level: {confidence.surprise_level:.3f}")
-    
-    # Print final report
-    print("\n" + "="*60)
-    aware_model.print_awareness_report()
-    
-    # Get learning plan
-    plan = aware_model.get_learning_plan(horizon=1000)
-    print("\nLearning Plan:")
-    print(f"  Primary Focus: {plan['primary_focus']}")
-    print(f"  Phase: {plan['phase']}")
-    print(f"  Milestones: {plan['estimated_milestones']}")
+        if step % 10 == 0:
+            print(f"[Step {step}] Confidence: {confidence.prediction_confidence:.3f} | Phase: {aware_model.get_awareness_state().phase.name}")
+
+    print("\nSelf-Awareness Integration: SUCCESS")

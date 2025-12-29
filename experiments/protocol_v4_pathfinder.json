@@ -1,0 +1,7 @@
+{
+  "pathfinder": {
+    "grid_size": 16,
+    "path_found": true,
+    "path_length": 31
+  }
+}
