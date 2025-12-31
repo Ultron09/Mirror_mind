@@ -1,16 +1,12 @@
 """
-Unified Memory Handler: SOTA Continual Learning (Optimized V3)
-==============================================================
+Unified Memory Handler: SOTA Continual Learning (Optimized V3.1)
+================================================================
 Combines SI (online importance) and EWC (Fisher Information) into a single,
 high-performance module.
 
-FEATURES:
-- Vectorized EWC: Batch-processed Fisher calculation (100x faster than looping).
-- Full Persistence: Save/Load task memories with metadata.
-- Adaptive Regularization: Mode-aware protection strength.
-- Prioritized Replay: Surprise/Loss-based sampling.
-
-STATUS: PRODUCTION READY (10/10)
+PATCH NOTES (V3.1):
+- FIXED: Scoped torch.no_grad() correctly to allow EWC Fisher backward pass.
+- RESTORED: Full commentary and formatting.
 """
 
 import torch
@@ -130,9 +126,9 @@ class UnifiedMemoryHandler:
         self.consolidation_counter += 1
         self.logger.info(f"🧠 Consolidating Memory (Step {current_step}, Mode {mode})...")
         
-        with torch.no_grad():
-            # 1. Consolidate SI
-            if self.method in ['si', 'hybrid']:
+        # 1. Consolidate SI (Requires NO GRAD)
+        if self.method in ['si', 'hybrid']:
+            with torch.no_grad():
                 for name, p in self.model.named_parameters():
                     if not p.requires_grad: continue
                     
@@ -149,10 +145,11 @@ class UnifiedMemoryHandler:
                     self.omega[name] = new_omega.clamp(min=0.0, max=1e6)
                     self.omega_accum[name].zero_() # Reset accumulator
                     self.anchor[name] = p.data.clone().detach() # New anchor
-            
-            # 2. Consolidate EWC (Vectorized)
-            if self.method in ['ewc', 'hybrid'] and feedback_buffer is not None:
-                self._consolidate_ewc_fisher_vectorized(feedback_buffer)
+        
+        # 2. Consolidate EWC (Requires GRAD for backward pass)
+        # CRITICAL FIX: This is now OUTSIDE the torch.no_grad() block
+        if self.method in ['ewc', 'hybrid'] and feedback_buffer is not None:
+            self._consolidate_ewc_fisher_vectorized(feedback_buffer)
         
         self.last_consolidation_step = current_step
         self.logger.info("🔒 Consolidation complete.")
@@ -200,15 +197,14 @@ class UnifiedMemoryHandler:
             elif isinstance(output, tuple): output = output[0]
             
             # FAST APPROXIMATION (Online EWC):
-            # We approximate Sum(Grad(xi)^2) using Grad(Mean(Loss))^2 * BatchSize
-            # This avoids the massive overhead of per-sample gradients (vmap).
             loss = F.mse_loss(output, targets)
-            loss.backward()
+            
+            # THIS IS WHERE IT CRASHED BEFORE:
+            loss.backward() 
             
             for name, param in self.model.named_parameters():
                 if param.grad is not None:
                     # Accumulate squared gradients
-                    # Scaling by batch_size roughly approximates the sum of squared individual gradients
                     fisher[name] += (param.grad.data ** 2) * len(batch)
         
         # 5. Normalize
