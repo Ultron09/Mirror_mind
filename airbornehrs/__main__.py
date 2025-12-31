@@ -20,7 +20,7 @@ import threading
 import torch
 
 # --- CONFIG ---
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 AUTHOR = "Suryaansh Prithvijit Singh"
 ASCII_LOGO = """
  █████╗ ██╗██████╗ ██████╗  ██████╗ ██████╗ ███╗   ██╗███████╗
@@ -226,6 +226,55 @@ class ModuleChecker:
             results.append((name, path, success, message))
         return results
 
+
+class DemoSessionReport:
+    def __init__(self):
+        self.steps = []
+        self.summary = {
+            "panic_events": 0,
+            "novelty_events": 0,
+            "dream_events": 0,
+            "meta_updates": 0,
+            "emotions": {},
+            "max_surprise": 0.0,
+            "max_importance": 0.0
+        }
+
+    def record_step(self, step, choice, metrics, raw):
+        entry = {
+            "step": step,
+            "choice": choice,
+            "loss": metrics["loss"],
+            "z_score": metrics["z_score"],
+            "mode": metrics["mode"],
+            "plasticity": metrics["plasticity"],
+            "emotion": raw.get("emotion") if raw else None,
+            "surprise": raw.get("surprise") if raw else None,
+            "importance": raw.get("importance") if raw else None,
+        }
+        self.steps.append(entry)
+
+        # Aggregate stats
+        if metrics["mode"] == "PANIC":
+            self.summary["panic_events"] += 1
+        if metrics["mode"] == "NOVELTY":
+            self.summary["novelty_events"] += 1
+        if choice == "dream":
+            self.summary["dream_events"] += 1
+
+        if raw:
+            emo = raw.get("emotion")
+            if emo:
+                self.summary["emotions"][emo] = self.summary["emotions"].get(emo, 0) + 1
+            self.summary["max_surprise"] = max(
+                self.summary["max_surprise"],
+                raw.get("surprise", 0.0)
+            )
+            self.summary["max_importance"] = max(
+                self.summary["max_importance"],
+                raw.get("importance", 0.0)
+            )
+
 # --- INTERACTIVE DEMO (HUMAN-IN-THE-LOOP) ---
 # --- INTERACTIVE DEMO (HUMAN-IN-THE-LOOP + RAW CONSCIOUSNESS) ---
 class InteractiveDemo:
@@ -274,24 +323,24 @@ class InteractiveDemo:
         console.print(
             Panel(
                 "[bold cyan]🧠 MirrorMind — Interactive Cognitive Experiment[/bold cyan]\n\n"
-                "You are inside the learning loop.\n\n"
+                "You are inside the learning loop.\n"
                 "Each step YOU decide what the world looks like.\n"
                 "The system adapts — and exposes its mind when stressed.\n\n"
-                "[bold]This runs until you exit.[/bold]",
+                "[bold]Type 'exit' to finish and receive a report.[/bold]",
                 title="🎮 Human-in-the-Loop Mode",
                 border_style="cyan"
             )
         )
 
+        session_report = DemoSessionReport()
+        step = 0
+
         try:
-            import torch
             import torch.nn as nn
             from airbornehrs.core import AdaptiveFramework
             from airbornehrs.presets import PRESETS
 
-            # -----------------------------
-            # Demo-specific aggressive config
-            # -----------------------------
+            # Demo config
             config = PRESETS.fast()
             config.warmup_steps = 2
             config.novelty_z_threshold = 0.5
@@ -315,11 +364,6 @@ class InteractiveDemo:
             console.print("[green]✓ Consciousness active[/green]")
             console.print("[green]✓ Reflex thresholds lowered[/green]\n")
 
-            step = 0
-
-            # -----------------------------
-            # Interactive loop
-            # -----------------------------
             while True:
                 console.rule(f"[bold cyan]STEP {step}[/bold cyan]")
 
@@ -329,49 +373,54 @@ class InteractiveDemo:
                     default="normal"
                 )
 
+                # -------- EXIT --------
                 if choice == "exit":
                     console.print("\n[bold green]👋 User exited cognitive experiment[/bold green]\n")
                     break
 
-                # -----------------------------
-                # Environment regimes
-                # -----------------------------
+                # -------- DREAM --------
+                if choice == "dream":
+                    console.print("[bold magenta]💤 Dreaming from memory buffer[/bold magenta]")
+                    framework.learn_from_buffer(batch_size=16, num_epochs=1)
+
+                    session_report.record_step(
+                        step=step,
+                        choice="dream",
+                        metrics={
+                            "loss": None,
+                            "z_score": None,
+                            "mode": "DREAM",
+                            "plasticity": None
+                        },
+                        raw={}
+                    )
+
+                    step += 1
+                    continue
+
+                # -------- ENVIRONMENTS --------
                 if choice == "normal":
                     x = torch.randn(4, 10)
                     y = torch.randn(4, 1)
                     regime = "STABLE ENVIRONMENT"
-
                 elif choice == "shift":
                     x = torch.randn(4, 10) * 5
                     y = torch.randn(4, 1)
                     regime = "DOMAIN SHIFT"
-
                 elif choice == "chaos":
                     x = torch.randn(4, 10) * torch.randn(1).abs()
                     y = torch.randn(4, 1) * 3
                     regime = "CHAOTIC INPUT"
-
                 elif choice == "freeze":
                     x = torch.zeros(4, 10)
                     y = torch.zeros(4, 1)
                     regime = "SIGNAL FREEZE"
 
-                elif choice == "dream":
-                    console.print("[bold magenta]💤 Dreaming from memory buffer[/bold magenta]")
-                    framework.learn_from_buffer(batch_size=16, num_epochs=1)
-                    step += 1
-                    continue
-
                 console.print(f"[dim]Environment:[/dim] [bold]{regime}[/bold]")
 
-                # -----------------------------
-                # Training step
-                # -----------------------------
+                # -------- TRAIN --------
                 metrics = framework.train_step(x, y)
 
-                # -----------------------------
-                # Telemetry
-                # -----------------------------
                 console.print(
                     f"[green]Loss[/green]: {metrics['loss']:.4f} | "
                     f"[cyan]Z[/cyan]: {metrics['z_score']:.2f} | "
@@ -379,9 +428,7 @@ class InteractiveDemo:
                     f"[magenta]Plasticity[/magenta]: {metrics['plasticity']:.2f}"
                 )
 
-                # -----------------------------
-                # Cognitive narration
-                # -----------------------------
+                # -------- NARRATION --------
                 if metrics["mode"] == "PANIC":
                     console.print("[bold red]🚨 PANIC — system protecting stability[/bold red]")
                 elif metrics["mode"] == "SURVIVAL":
@@ -393,9 +440,7 @@ class InteractiveDemo:
                 elif metrics["mode"] == "BOOTSTRAP":
                     console.print("[dim]Bootstrapping internal models[/dim]")
 
-                # -----------------------------
-                # AUTO-EXPOSE RAW CONSCIOUSNESS
-                # -----------------------------
+                # -------- CONSCIOUSNESS --------
                 raw = None
                 if framework.consciousness:
                     raw = getattr(framework.consciousness, "last_metrics", None)
@@ -404,52 +449,71 @@ class InteractiveDemo:
                     console.print("[bold magenta]🧠 RAW CONSCIOUSNESS SPIKE[/bold magenta]")
                     InteractiveDemo.render_consciousness(console, raw)
 
-                # -----------------------------
-                # Memory & meta signals
-                # -----------------------------
-                if len(framework.feedback_buffer.buffer) % 5 == 0:
-                    console.print("[blue]💾 Memory updated[/blue]")
-
-                if framework.meta_log_probs:
-                    console.print("[purple]🧠 Meta-policy updated[/purple]")
-
-                # -----------------------------
-                # Stabilize Z-score for demo
-                # -----------------------------
-                if len(framework.loss_history) < 30:
-                    framework.loss_history.append(metrics["mse"])
+                # -------- RECORD STEP (CRITICAL) --------
+                session_report.record_step(
+                    step=step,
+                    choice=choice,
+                    metrics=metrics,
+                    raw=raw or {}
+                )
 
                 step += 1
                 time.sleep(0.1)
 
-            # -----------------------------
-            # Final state dump
-            # -----------------------------
-            console.rule("[bold cyan]FINAL SYSTEM STATE[/bold cyan]")
+            # -------- FINAL REPORT --------
+            InteractiveDemo.render_final_report(console, session_report)
 
-            console.print(
-                Panel(
-                    f"""
-Total steps experienced : {step}
-Memory buffer size      : {len(framework.feedback_buffer.buffer)}
-Tracked layers          : {framework.num_tracked_layers}
-Consciousness           : ACTIVE
-Meta-controller         : ONLINE
-
-You did not train a model.
-You interacted with a cognitive system.
-                    """,
-                    border_style="cyan"
-                )
-            )
+        except KeyboardInterrupt:
+            console.print("\n[bold yellow]Demo interrupted by user[/bold yellow]")
+            InteractiveDemo.render_final_report(console, session_report)
 
         except Exception as e:
-            console.print(
-                Panel(
-                    f"[bold red]SYSTEM FAILURE[/bold red]\n\n{e}",
-                    border_style="red"
-                )
+            console.print(f"\n[bold red]Demo error:[/bold red] {e}")
+            InteractiveDemo.render_final_report(console, session_report)
+
+    @staticmethod
+    def render_final_report(console, report):
+        console.rule("[bold cyan]🧾 COGNITIVE SESSION REPORT[/bold cyan]")
+
+        total_steps = len(report.steps)
+        dominant_emotion = max(
+            report.summary["emotions"].items(),
+            key=lambda x: x[1],
+            default=("neutral", 0)
+        )[0]
+
+        console.print(
+            Panel(
+                f"""
+Total interactions: {total_steps}
+Panic responses: {report.summary['panic_events']}
+Dream events: {report.summary['dream_events']}
+Dominant emotional state: {dominant_emotion}
+
+This session demonstrates how the system adapts its learning
+rate, memory, and behavior based on stress, novelty, and repetition.
+""".strip(),
+                title="🧠 Session Interpretation",
+                border_style="cyan"
             )
+        )
+
+        console.print(
+            Panel(
+                f"""
+Peak surprise: {report.summary['max_surprise']:.2f}
+Peak importance: {report.summary['max_importance']:.2f}
+
+Surprise reflects unexpected situations.
+Importance reflects what the system chose to remember.
+""".strip(),
+                title="⚡ Cognitive Signals",
+                border_style="green"
+            )
+        )
+
+        console.print("\n[bold green]✓ End of cognitive report[/bold green]\n")
+
 
 
 

@@ -699,26 +699,47 @@ class AdaptiveFramework(nn.Module):
         """
         Active Replay ("Dreaming").
         """
-        if len(self.feedback_buffer.buffer) < 10: return
-        
+        if len(self.feedback_buffer.buffer) < 10:
+            return
+            
         self.model.train()
         for _ in range(num_epochs):
+            buffer_size = len(self.feedback_buffer.buffer)
+            effective_batch = min(batch_size, buffer_size)
+
+            if effective_batch <= 0:
+                return
+
             if self.prioritized_buffer:
-                samples = self.prioritized_buffer.sample_batch(batch_size, use_priorities=True)
+                samples = self.prioritized_buffer.sample_batch(
+                    effective_batch,
+                    use_priorities=True
+                )
             else:
-                samples = random.sample(self.feedback_buffer.buffer, batch_size)
-            
-            if not samples: continue
-            
+                samples = random.sample(
+                    self.feedback_buffer.buffer,
+                    effective_batch
+                )
+                
+            if not samples:
+                continue
+                
             # Fast concatenation
             try:
                 inputs = torch.cat([s.input_data for s in samples], dim=0).to(self.device)
                 targets = torch.cat([s.target for s in samples], dim=0).to(self.device)
             except Exception:
                 continue
-            
+                
             # Train without meta-step (Lookahead behavior)
-            self.train_step(inputs, targets, enable_dream=False, meta_step=False, record_stats=False)
+            self.train_step(
+                inputs,
+                targets,
+                enable_dream=False,
+                meta_step=False,
+                record_stats=False
+            )
+
 
     def save_checkpoint(self, path: str):
         Path(path).parent.mkdir(parents=True, exist_ok=True)

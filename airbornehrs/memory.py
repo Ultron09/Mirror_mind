@@ -329,42 +329,90 @@ class UnifiedMemoryHandler:
 
 
 class PrioritizedReplayBuffer:
-    """Experience replay with priority sampling."""
+    """
+    Experience replay with priority-based sampling.
+    Stable, bounded, and cognition-safe.
+    """
+
     def __init__(self, capacity: int = 10000, temperature: float = 0.6):
         self.capacity = capacity
-        self.temperature = temperature
+        self.temperature = max(temperature, 1e-6)  # safety
         self.buffer = deque(maxlen=capacity)
-    
+
     def add(self, snapshot, z_score: float = 0.0, importance: float = 1.0):
-        snapshot.z_score = z_score
-        snapshot.importance = importance
+        """
+        Add a snapshot with cognitive annotations.
+        """
+        snapshot.z_score = float(z_score)
+        snapshot.importance = float(importance)
         snapshot.age_in_steps = 0
-        self.buffer.append(snapshot)
-        # Age others
+
+        # Age existing memories
         for s in self.buffer:
-            if hasattr(s, 'age_in_steps'): s.age_in_steps += 1
-    
+            if hasattr(s, "age_in_steps"):
+                s.age_in_steps += 1
+
+        self.buffer.append(snapshot)
+
     def sample_batch(self, batch_size: int, use_priorities: bool = True):
-        if len(self.buffer) < batch_size: return list(self.buffer)
-        
+        """
+        Sample a batch safely.
+        Always returns <= batch_size samples.
+        Never crashes.
+        """
+        buffer_size = len(self.buffer)
+        if buffer_size == 0:
+            return []
+
+        effective_batch = min(batch_size, buffer_size)
+        if effective_batch <= 0:
+            return []
+
+        # -----------------------------
+        # Uniform sampling
+        # -----------------------------
         if not use_priorities:
-            return random.sample(list(self.buffer), batch_size)
-        
-        # Priority = Importance + Surprise + Recency
+            return random.sample(list(self.buffer), effective_batch)
+
+        # -----------------------------
+        # Priority computation
+        # -----------------------------
         probs = []
         for s in self.buffer:
-            p = getattr(s, 'importance', 0.5) + abs(getattr(s, 'z_score', 0.0))
-            # Boost recent slightly
-            if hasattr(s, 'age_in_steps'):
-                p += (100.0 / (1.0 + s.age_in_steps)) * 0.1
-            probs.append(max(0.1, p))
-            
-        probs = np.array(probs)
-        probs = probs ** (1.0 / self.temperature) # Apply temperature
-        if probs.sum() == 0: probs = np.ones_like(probs)
-        probs /= probs.sum()
-        
-        indices = np.random.choice(len(self.buffer), batch_size, p=probs, replace=True)
+            importance = abs(getattr(s, "importance", 0.5))
+            surprise = abs(getattr(s, "z_score", 0.0))
+
+            # Base priority
+            p = importance + surprise
+
+            # Gentle recency bias (bounded, non-dominant)
+            age = getattr(s, "age_in_steps", 0)
+            p += 1.0 / (1.0 + age)
+
+            probs.append(max(0.05, p))  # floor prevents zero-probability
+
+        probs = np.array(probs, dtype=np.float64)
+
+        # Temperature scaling
+        probs = probs ** (1.0 / self.temperature)
+
+        # Numerical safety
+        total = probs.sum()
+        if not np.isfinite(total) or total <= 0:
+            probs = np.ones_like(probs) / len(probs)
+        else:
+            probs /= total
+
+        # -----------------------------
+        # Sampling (with replacement)
+        # -----------------------------
+        indices = np.random.choice(
+            buffer_size,
+            effective_batch,
+            p=probs,
+            replace=True
+        )
+
         return [self.buffer[i] for i in indices]
 
 class AdaptiveRegularization:

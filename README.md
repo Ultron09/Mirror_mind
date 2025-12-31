@@ -6,7 +6,6 @@
 **Release Line:** v1.0.x
 **Maintained by:** AirborneHRS Research Lab
 **Lead Author:** Suryaansh Prithvijit Singh
-**Current Status:** Production-Ready for Research (7.4/10 evaluation score)
 
 <p align="center">
   <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExM25uN3JsNXpvejc0a3B3NXBucGU4NGd2eWJlYTBwc2xqdWdpejcyNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/foecxPebqfDx5gxQCU/giphy.gif" width="760"/>
@@ -528,35 +527,11 @@ pip install -e .
 
 # Or from PyPI (when published)
 pip install airbornehrs
+
+python -m airbornehrs
 ```
 
-### Run Automatic Sweep + Phase 7 Full Evaluation
 
-```powershell
-# Using built-in test environment
-& "test_env\Scripts\python.exe" run_mm.py
-
-# Or with your Python environment
-python run_mm.py
-```
-
-This **auto-picks the best config** and saves:
-
-- `sweep_results.json` — Hyperparameter sweep results
-- `checkpoints/` — Model checkpoints for reproducibility
-- Detailed logs of all four control loops
-
-### Run Sweep Only
-
-```powershell
-python run_mm.py --mode sweep
-```
-
-### Run Phase 7 with Explicit Config
-
-```powershell
-python run_mm.py --mode phase7 --config '{"adapter_lr":0.005,"ewc_lambda":1.0,"noise_sigma":0.02}'
-```
 
 ### Run with Your Own Model
 
@@ -699,7 +674,6 @@ Each includes **derivations, proofs, and intuitions**:
 
 ### Reproducibility Guarantees
 
-- ✅ Deterministic seeds supported (set `seed` in config)
 - ✅ Fisher matrices cached per task (no stochastic recomputation)
 - ✅ Meta-updates logged explicitly (track $\theta_{slow}$ evolution)
 - ✅ Checkpoint/resume functionality with full state
@@ -735,7 +709,7 @@ Latest benchmarks on continual learning tasks:
 ```
 Task Sequence: MNIST → CIFAR-10 → CIFAR-100
 ────────────────────────────────────────────
-Baseline (SGD):       
+Baseline (SGD):     
   MNIST accuracy: 98.2%  →  87.1% (catastrophic forgetting)
   
 With EWC (λ=1.0):
