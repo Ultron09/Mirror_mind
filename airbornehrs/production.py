@@ -239,8 +239,11 @@ class ProductionAdapter:
         return adapter
     
     def get_metrics(self) -> Dict[str, Any]:
-        """Get current metrics"""
-        metrics = self.framework.get_metrics()
+        """Get current metrics from the consciousness module."""
+        metrics = {}
+        if self.framework.consciousness and hasattr(self.framework.consciousness, 'last_metrics'):
+            metrics = self.framework.consciousness.last_metrics
+        
         if self.meta_controller:
             metrics.update(self.meta_controller.get_summary())
         return metrics

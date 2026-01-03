@@ -2,13 +2,6 @@
 Core Adaptive Meta-Learning Framework (Universal V7.0 - "Production" Edition)
 =============================================================================
 The Universal Wrapper that turns ANY PyTorch model into a Self-Learning System.
-
-PATCH NOTES (V7.0):
-1. Unified Memory Integration: Fully switched to optimized memory.py (No ewc.py).
-2. Adapter Pre-Init: Fixes optimizer missing lazy parameters.
-3. Vectorized Replay: Uses fast batching for dreams and consolidation.
-4. Robust Platforming: Removed OS-specific path dependencies.
-5. Consciousness V2: Full integration with the new self-awareness module.
 """
 
 import torch
@@ -129,7 +122,8 @@ class AdaptiveFrameworkConfig:
 @dataclass
 class PerformanceSnapshot:
     """Standard container for experience replay"""
-    input_data: torch.Tensor
+    input_args: tuple
+    input_kwargs: dict
     output: torch.Tensor
     target: torch.Tensor
     reward: float
@@ -138,7 +132,8 @@ class PerformanceSnapshot:
     episode: int
     
     def to_device(self, device):
-        self.input_data = self.input_data.to(device)
+        self.input_args = tuple(arg.to(device) for arg in self.input_args if isinstance(arg, torch.Tensor))
+        self.input_kwargs = {k: v.to(device) for k, v in self.input_kwargs.items() if isinstance(v, torch.Tensor)}
         self.output = self.output.to(device)
         self.target = self.target.to(device)
         return self
@@ -154,10 +149,11 @@ class FeedbackBuffer:
         self.buffer: List[PerformanceSnapshot] = []
         self.total_seen = 0
         
-    def add(self, input_data, output, target, reward, loss):
+    def add(self, input_args: tuple, input_kwargs: dict, output: torch.Tensor, target: torch.Tensor, reward: float, loss: float):
         # Move to CPU immediately to save VRAM
         snapshot = PerformanceSnapshot(
-            input_data=input_data.detach().cpu(),
+            input_args=tuple(arg.detach().cpu() for arg in input_args if isinstance(arg, torch.Tensor)),
+            input_kwargs={k: v.detach().cpu() for k, v in input_kwargs.items() if isinstance(v, torch.Tensor)},
             output=output.detach().cpu(),
             target=target.detach().cpu(),
             reward=reward,
@@ -197,7 +193,7 @@ class IntrospectionEngine(nn.Module):
         )
         
     def forward(self, global_state):
-        log_var = self.state_monitor(global_state)
+        log_var = torch.tanh(self.state_monitor(global_state))
         policy_out = self.policy_net(global_state)
         
         # Guard against NaNs
@@ -278,7 +274,7 @@ class PerformanceMonitor:
                     elif param.ndim >= 2:
                         param.mul_(1.0 + scale_factor)
 
-        return (abs(raw_scale) + abs(raw_shift)).item()
+        return abs(raw_scale) + abs(raw_shift)
 
 
 # ==================== UNIVERSAL FRAMEWORK ====================
@@ -436,7 +432,7 @@ class AdaptiveFramework(nn.Module):
                     if out_dim:
                         self.adapter_bank.ensure_index(idx, out_dim=int(out_dim))
                 
-                module.register_forward_pre_hook(self._generate_fast_hook(idx))
+                module.register_forward_pre_hook(self._generate_fast_hook(idx, type(module)))
                 idx += 1
         
         self.num_tracked_layers = idx
@@ -447,7 +443,7 @@ class AdaptiveFramework(nn.Module):
             requires_grad=False
         )
 
-    def _generate_fast_hook(self, layer_idx):
+    def _generate_fast_hook(self, layer_idx, module_type):
         def hook(module, inputs):
             try:
                 inp = inputs[0]
@@ -463,7 +459,7 @@ class AdaptiveFramework(nn.Module):
 
                     # Apply Adapter
                     if self.adapter_bank:
-                        adapted = self.adapter_bank.apply(layer_idx, inp)
+                        adapted = self.adapter_bank.apply(layer_idx, inp, module_type)
                         if adapted is not inp:
                             return (adapted,) + inputs[1:]
             except Exception:
@@ -492,9 +488,23 @@ class AdaptiveFramework(nn.Module):
 
         return output, log_var, affine_modifiers
 
-    def train_step(self, input_data, target_data, enable_dream: bool = True, meta_step: bool = True, record_stats: bool = True):
+    def get_emotional_parameters(self, emotion: str) -> Tuple[float, bool, float]:
+        """Map emotional state to learning parameters."""
+        # Maps emotion to: (plasticity_gate, apply_memory, learning_rate_multiplier)
+        params = {
+            "confident": (1.0, True, 1.0),
+            "anxious": (0.9, True, 1.2),
+            "curious": (1.0, True, 1.1),
+            "bored": (0.7, True, 0.8),
+            "frustrated": (1.1, True, 1.5), # Keep memory penalty
+            "satisfied": (1.0, True, 1.0),
+            "overwhelmed": (0.5, True, 0.6), # Keep memory penalty
+        }
+        return params.get(emotion, (1.0, True, 1.0))
+
+    def train_step(self, *model_inputs, target_data, enable_dream: bool = True, meta_step: bool = True, record_stats: bool = True):
         """
-        Main training loop iteration.
+        Main training loop iteration for multi-input models.
         """
         self.model.train()
         self.optimizer.zero_grad(set_to_none=True)
@@ -503,187 +513,144 @@ class AdaptiveFramework(nn.Module):
             self.adapter_optimizer.zero_grad(set_to_none=True)
         
         # 1. Forward Pass
-        output, log_var, affine_modifiers = self.forward(input_data)
-
+        output, log_var, affine_modifiers = self.forward(*model_inputs)
         
         # 2. Loss Calculation
         pred = output
-        if hasattr(output, 'logits'): pred = output.logits
-        elif isinstance(output, tuple): pred = output[0]
+        latent_features = None
+        if hasattr(output, 'logits'): 
+            pred = output.logits
+        elif isinstance(output, tuple): 
+            pred = output[0]
+            if len(output) > 1:
+                latent_features = output[1]
         
-        if pred.shape == target_data.shape:
-            raw_mse = F.mse_loss(pred, target_data)
-            precision = torch.exp(-log_var)
-            loss = torch.mean(0.5 * (log_var + (pred - target_data) ** 2 * precision))
-        elif pred.dim() > target_data.dim(): 
-             # Classification
-             ce_loss = F.cross_entropy(pred.view(-1, pred.size(-1)), target_data.view(-1), reduction='none')
-             raw_mse = ce_loss.mean()
-             precision = torch.exp(-log_var)
-             loss = torch.mean(0.5 * (log_var + ce_loss * precision))
+        if pred.dim() > target_data.dim() and target_data.dim() == 1:
+             loss = F.cross_entropy(pred.view(-1, pred.size(-1)), target_data.view(-1))
         else:
-             raw_mse = F.mse_loss(pred.float(), target_data.float())
-             loss = raw_mse
+             loss = F.mse_loss(pred.float(), target_data.float())
 
-        # NaN Guard
         if torch.isnan(loss) or torch.isinf(loss):
              self.meta_log_probs.clear()
              return {'loss': 10.0, 'status': 'nan_bailout'}
 
         current_loss_val = loss.item()
-        current_mse_val = raw_mse.item()
+        current_mse_val = current_loss_val
 
-        # 3. Hierarchical Reflex System (Mode Selection)
-        z_score = 0.0
-        if len(self.loss_history) > 20:
-            hist_mean = np.mean(self.loss_history)
-            hist_std = np.std(self.loss_history) + 1e-9
-            z_score = (current_mse_val - hist_mean) / hist_std
-
-        if self.step_count < self.config.warmup_steps:
-            mode = "BOOTSTRAP"
-            plasticity_gate = 1.0
-            apply_memory = False
-            trigger_consolidation = False
-            block_reptile = True 
-        elif current_mse_val > self.config.panic_threshold:
-            mode = "PANIC"
-            plasticity_gate = 1.0
-            apply_memory = False 
-            trigger_consolidation = False
-            block_reptile = True 
-        elif z_score > self.config.survival_z_threshold:
-            mode = "SURVIVAL"
-            plasticity_gate = 1.0
-            apply_memory = False
-            trigger_consolidation = False
-            block_reptile = True
-        elif z_score > self.config.novelty_z_threshold:
-            mode = "NOVELTY"
-            plasticity_gate = 1.0
-            apply_memory = True
-            trigger_consolidation, _ = self.consolidation_scheduler.should_consolidate(
-                current_step=self.step_count, z_score=z_score, mode=mode, criterion=self.config.consolidation_criterion
-            )
-            block_reptile = False
-            # Try auto-adapter
-            self.auto_apply_best_task_memory(threshold=0.85)
-        else:
-            mode = "NORMAL"
-            apply_memory = True
-            plasticity_gate = 1.0 
-            block_reptile = False
-            trigger_consolidation, _ = self.consolidation_scheduler.should_consolidate(
-                current_step=self.step_count, z_score=z_score, mode=mode, criterion=self.config.consolidation_criterion
-            )
-
-        # 4. Consciousness Interaction
-        cons_importance = 1.0
+        # 3. Consciousness Interaction
+        cons_metrics = {}
         if self.consciousness:
             try:
-                # Features for consciousness
-                features = self.telemetry_buffer.detach()
-                metrics = self.consciousness.observe(input_data, target_data, pred, features=features)
-                self.consciousness.last_metrics = metrics
+                # Use latent features if available, otherwise fallback to telemetry
+                features_for_cons = latent_features if latent_features is not None else self.telemetry_buffer.detach()
+                cons_metrics = self.consciousness.observe(*model_inputs, y_true=target_data, y_pred=pred, features=features_for_cons)
+                self.consciousness.last_metrics = cons_metrics
+            except Exception as e:
+                self.logger.debug(f"Consciousness observe failed: {e}")
+                cons_metrics['emotion'] = 'confident' # Default
+        else:
+            cons_metrics['emotion'] = 'confident'
+            cons_metrics['surprise'] = 0.0
 
-                
-                cons_importance = metrics.get('importance', 1.0) # Used for replay priority
-                
-                # Override consolidation if consciousness demands it
-                # (Simple heuristic based on returned metrics if needed)
-                if metrics.get('surprise', 0) > 3.0:
-                    trigger_consolidation = True
-            except Exception:
-                pass
+        # 4. Emotional Control
+        emotion = cons_metrics.get('emotion', 'confident')
+        
+        # Use dynamic multiplier if available (V7.2+), otherwise fallback to static map
+        if 'learning_rate_multiplier' in cons_metrics:
+            lr_multiplier = cons_metrics['learning_rate_multiplier']
+            plasticity_gate, apply_memory, _ = self.get_emotional_parameters(emotion)
+        else:
+            plasticity_gate, apply_memory, lr_multiplier = self.get_emotional_parameters(emotion)
+        
+        # Adjust LR
+        for g in self.optimizer.param_groups:
+            g['lr'] = self.config.learning_rate * lr_multiplier
 
-        # 5. Consolidation Execution
+        # 5. Consolidation
+        trigger_consolidation, reason = self.consolidation_scheduler.should_consolidate(
+            current_step=self.step_count, 
+            z_score=cons_metrics.get('surprise', 0), 
+            mode=emotion, 
+            criterion=self.config.consolidation_criterion
+        )
+        
         if trigger_consolidation:
             self.memory.consolidate(
                 feedback_buffer=self.feedback_buffer,
                 current_step=self.step_count,
-                z_score=z_score,
-                mode=mode
+                z_score=cons_metrics.get('surprise', 0),
+                mode=emotion
             )
             self.consolidation_scheduler.record_consolidation(self.step_count)
-            # Save task memory
             fp = self.telemetry_buffer.mean(dim=0)
             self.memory.save_task_memory(adapters=self.adapter_bank, fingerprint=fp)
 
         # 6. Backward Pass with Memory Penalty
         if self.memory.is_enabled() and apply_memory:
-            penalty = self.memory.compute_penalty(adaptive_mode=mode)
+            penalty = self.memory.compute_penalty(adaptive_mode=emotion)
             loss += penalty
-
         
-        # 7. Optimizer Step (with Shielding)
-        if plasticity_gate > 0.01:
-            # Backbone
-            if plasticity_gate < 0.99:
-                with torch.no_grad():
-                    for p in self.model.parameters():
-                        if p.grad is not None: p.grad.mul_(plasticity_gate)
+        # 7. Optimizer Step
+        # Scale gradients by plasticity gate
+        (loss * plasticity_gate).backward(retain_graph=True)
+        
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.gradient_clip_norm)
             
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.gradient_clip_norm)
+        param_before = self.memory.before_step_snapshot()
+        self.optimizer.step()
+        self.memory.accumulate_path(param_before)
             
-            # SI Accumulation Snapshot
-            param_before = self.memory.before_step_snapshot()
-            
-            self.optimizer.step()
-            
-            # SI Accumulation Update
-            self.memory.accumulate_path(param_before)
-            
-            # Adapter Step
-            if self.adapter_optimizer:
-                self.adapter_optimizer.step()
-                # Clip adapters
-                for p in self.adapter_bank.parameters():
-                    if p.data.norm() > self.config.adapter_max_norm:
-                        p.data.mul_(self.config.adapter_max_norm / (p.data.norm() + 1e-6))
+        if self.adapter_optimizer:
+            self.adapter_optimizer.step()
+            for p in self.adapter_bank.parameters():
+                if p.data.norm() > self.config.adapter_max_norm:
+                    p.data.mul_(self.config.adapter_max_norm / (p.data.norm() + 1e-6))
 
-        # 8. Meta-Learning (Reptile + Introspection)
+        # 8. Meta-Learning
         if self.reward_baseline == 0.0: self.reward_baseline = current_loss_val
         advantage = self.reward_baseline - current_loss_val
         self.reward_baseline = (1 - self.alpha) * self.reward_baseline + self.alpha * current_loss_val
         
         if meta_step and len(self.meta_log_probs) > 0:
-            scale = 50.0 if mode in ["PANIC", "SURVIVAL"] else 10.0
-            advantage_t = torch.tensor(
-            advantage,
-            device=self.device,
-            dtype=torch.float32
-             )
-
-            policy_loss = -self.meta_log_probs[-1] * (advantage_t * scale)
-
+            advantage_t = torch.tensor(advantage, device=self.device, dtype=torch.float32)
+            policy_loss = -self.meta_log_probs[-1] * advantage_t
             policy_loss.backward()
             self.meta_optimizer.step()
             self.meta_log_probs.clear()
             
-            # Reptile Step (Only on real steps, not dreams)
-            if not block_reptile:
+            if emotion not in ['frustrated', 'overwhelmed']:
                 self.meta_controller.adapt(loss=current_loss_val)
 
-        # 9. Weight Editing (Direct Cortex Manipulation)
+        # 9. Weight Editing
         if self.step_count % self.config.evaluation_frequency == 0:
             avg_loss = np.mean(self.loss_history) if self.loss_history else loss.item()
             internals = {'affine_modifiers': affine_modifiers, 'telemetry_buffer': self.telemetry_buffer, 'layer_map': self.layer_map}
-            try:
-                self.monitor.adapt_weights(current_loss=loss.item(), previous_loss=avg_loss, activations=internals)
-            except Exception:
-                pass
+            self.monitor.adapt_weights(current_loss=loss.item(), previous_loss=avg_loss, activations=internals)
 
-        # 10. Dreaming (Replay)
+        # 10. Dreaming & Stats
         if record_stats:
             self.loss_history.append(current_mse_val)
-            self.feedback_buffer.add(input_data, pred, target_data, -current_mse_val, current_mse_val)
+            self.feedback_buffer.add(model_inputs, {}, pred, target_data, -current_mse_val, current_mse_val)
             if self.prioritized_buffer:
                 snapshot = self.feedback_buffer.buffer[-1]
-                self.prioritized_buffer.add(snapshot, z_score=z_score, importance=cons_importance)
+                self.prioritized_buffer.add(snapshot, z_score=cons_metrics.get('surprise', 0), importance=cons_metrics.get('importance', 1.0))
 
         if enable_dream and self.config.enable_dreaming and (self.step_count % self.config.dream_interval == 0):
-             if mode not in ["PANIC", "SURVIVAL", "BOOTSTRAP"]:
+             if emotion not in ['overwhelmed', 'frustrated']:
                  self.learn_from_buffer(batch_size=16, num_epochs=1)
+        
+        # [NEW] Episodic Replay Trigger (V7.2)
+        if enable_dream and self.consciousness and (self.step_count % self.config.dream_interval == 0):
+             # Use current surprise/loss to query relevant memories
+             # [OPTIMIZATION] Pass features for content-aware retrieval
+             # Use latent_features if available, otherwise None (telemetry is bad for content retrieval)
+             features_for_replay = latent_features if latent_features is not None else None
+             
+             self.learn_from_episodic_memory(
+                 current_surprise=cons_metrics.get('surprise', 0.0),
+                 current_loss=cons_metrics.get('loss', 0.0),
+                 current_features=features_for_replay
+             )
         
         if enable_dream: self.step_count += 1
         
@@ -691,13 +658,13 @@ class AdaptiveFramework(nn.Module):
             "loss": loss.item(),
             "mse": current_mse_val,
             "plasticity": plasticity_gate,
-            "z_score": float(z_score),
-            "mode": mode
+            "z_score": float(cons_metrics.get('surprise', 0)),
+            "mode": emotion
         }
     
     def learn_from_buffer(self, batch_size: int = 32, num_epochs: int = 1):
         """
-        Active Replay ("Dreaming").
+        Active Replay ("Dreaming") for multi-input models.
         """
         if len(self.feedback_buffer.buffer) < 10:
             return
@@ -724,26 +691,74 @@ class AdaptiveFramework(nn.Module):
             if not samples:
                 continue
                 
-            # Fast concatenation
+            # --- New Batching Logic for Multi-Input Models ---
             try:
-                inputs = torch.cat([s.input_data for s in samples], dim=0).to(self.device)
-                targets = torch.cat([s.target for s in samples], dim=0).to(self.device)
-            except Exception:
+                # Transpose the list of input_args tuples
+                # Assumes all experiences in the buffer have the same number of input args
+                num_args = len(samples[0].input_args)
+                batch_args = []
+                for i in range(num_args):
+                    # For each argument position, concatenate the tensors from all samples
+                    arg_tensors = [s.input_args[i].to(self.device) for s in samples]
+                    batch_args.append(torch.cat(arg_tensors, dim=0))
+                
+                batch_targets = torch.cat([s.target.to(self.device) for s in samples], dim=0)
+
+            except Exception as e:
+                self.logger.debug(f"Failed to create replay batch, skipping dream step: {e}")
                 continue
                 
-            # Train without meta-step (Lookahead behavior)
+            # Call train_step with unpacked arguments
             self.train_step(
-                inputs,
-                targets,
+                *batch_args,
+                target_data=batch_targets,
                 enable_dream=False,
                 meta_step=False,
                 record_stats=False
             )
 
+    def learn_from_episodic_memory(self, current_surprise: float, current_loss: float, current_features: Optional[torch.Tensor] = None, k: int = 5):
+        """
+        Replay specific, relevant episodes from consciousness.
+        """
+        if not self.consciousness: return
+
+        # 1. Retrieve
+        memories = self.consciousness.episodic_memory.retrieve_relevant_memories(
+            current_surprise=current_surprise,
+            current_error=current_loss,
+            current_features=current_features,
+            k=k
+        )
+        
+        if not memories: return
+
+        # 2. Construct Batch
+        try:
+            valid_memories = [m for m in memories if m.y is not None and m.x is not None]
+            if not valid_memories: return
+
+            # Stack inputs and targets
+            # NOTE: Currently supports single-input models for episodic replay
+            batch_x = torch.stack([m.x.to(self.device) for m in valid_memories])
+            batch_y = torch.stack([m.y.to(self.device) for m in valid_memories])
+            
+            # 3. Replay
+            self.train_step(
+                batch_x, 
+                target_data=batch_y,
+                enable_dream=False,
+                meta_step=False,
+                record_stats=False
+            )
+            
+        except Exception as e:
+            self.logger.debug(f"Episodic replay failed: {e}")
 
     def save_checkpoint(self, path: str):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         torch.save({
+            'config': self.config,  # Save the configuration
             'model_state': self.model.state_dict(),
             'introspection': self.introspection_engine.state_dict(),
             'optimizer': self.optimizer.state_dict(),

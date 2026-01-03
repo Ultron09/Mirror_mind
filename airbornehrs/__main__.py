@@ -18,9 +18,13 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import threading
 import torch
+import torch.nn as nn
+
+# Ensure local package is used
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # --- CONFIG ---
-VERSION = "1.0.7"
+VERSION = "1.0.9"
 AUTHOR = "Suryaansh Prithvijit Singh"
 ASCII_LOGO = """
  █████╗ ██╗██████╗ ██████╗  ██████╗ ██████╗ ███╗   ██╗███████╗
@@ -313,7 +317,7 @@ class InteractiveDemo:
         console.print(table)
 
     @staticmethod
-    def run_quick_demo():
+    def run_quick_demo(model=None):
         if not HAS_RICH:
             print("\n[Demo requires Rich UI library]")
             return
@@ -350,13 +354,16 @@ class InteractiveDemo:
             config.evaluation_frequency = 1
             config.dream_interval = 3
 
-            model = nn.Sequential(
-                nn.Linear(10, 64),
-                nn.ReLU(),
-                nn.Linear(64, 64),
-                nn.ReLU(),
-                nn.Linear(64, 1)
-            )
+            if model is None:
+                model = nn.Sequential(
+                    nn.Linear(10, 64),
+                    nn.ReLU(),
+                    nn.Linear(64, 64),
+                    nn.ReLU(),
+                    nn.Linear(64, 1)
+                )
+            else:
+                console.print("[green]✓ Using Custom User Model[/green]")
 
             framework = AdaptiveFramework(model, config)
 
@@ -419,7 +426,7 @@ class InteractiveDemo:
                 console.print(f"[dim]Environment:[/dim] [bold]{regime}[/bold]")
 
                 # -------- TRAIN --------
-                metrics = framework.train_step(x, y)
+                metrics = framework.train_step(x, target_data=y)
 
                 console.print(
                     f"[green]Loss[/green]: {metrics['loss']:.4f} | "
@@ -513,9 +520,6 @@ Importance reflects what the system chose to remember.
         )
 
         console.print("\n[bold green]✓ End of cognitive report[/bold green]\n")
-
-
-
 
 
 # --- RICH UI (ULTRA-ADVANCED) ---
@@ -666,7 +670,8 @@ def run_interactive_dashboard():
     console.print("  [cyan]1.[/cyan] Run Quick Demo")
     console.print("  [cyan]2.[/cyan] Show Documentation")
     console.print("  [cyan]3.[/cyan] Export System Report")
-    console.print("  [cyan]4.[/cyan] Exit")
+    console.print("  [cyan]4.[/cyan] Model Playground (No-Code)")
+    console.print("  [cyan]5.[/cyan] Exit")
     console.print("─" * console.width + "\n")
 
 
@@ -694,7 +699,7 @@ framework = AdaptiveFramework(model, config)
 
 # Training loop
 for x, y in dataloader:
-    metrics = framework.train_step(x, y)
+    metrics = framework.train_step(x, target_data=y)
     print(f"Loss: {metrics['loss']:.4f}, Mode: {metrics['mode']}")
 ```
 
@@ -739,6 +744,270 @@ def export_system_report():
         json.dump(report, f, indent=2)
     
     console.print(f"\n[green]✓[/green] Report exported to: [bold]{filename}[/bold]")
+
+
+# --- MODEL PLAYGROUND (NO-CODE) ---
+class ModelPlayground:
+    """
+    Interactive No-Code Model Builder & Trainer.
+    Allows users to design, train, and test models on the fly.
+    """
+    
+    @staticmethod
+    def run():
+        console.clear()
+        console.print(Panel("[bold cyan]🛠️  Model Playground (No-Code Mode)[/bold cyan]", border_style="cyan"))
+        
+        # 1. Select Dataset
+        dataset_name = Prompt.ask("Select Dataset", choices=["MNIST", "FashionMNIST", "Synthetic"], default="MNIST")
+        console.print(f"[green]Selected: {dataset_name}[/green]")
+        
+        # Shape tracking: (Channels, Height, Width) or (Features,)
+        current_shape = (1, 28, 28) # Default for MNIST/FashionMNIST
+        output_dim = 10
+        
+        if dataset_name == "Synthetic":
+            current_shape = (20,)
+            output_dim = 2
+        
+        # 2. Build Model
+        console.print("\n[bold]🏗️  Build Your Neural Network[/bold]")
+        layers = []
+        
+        while True:
+            # Display current shape
+            shape_str = f"{current_shape}"
+            console.print(f"Current Output Shape: [cyan](Batch, {shape_str})[/cyan]")
+            
+            # Determine available layer types based on current shape
+            is_image = len(current_shape) == 3
+            
+            choices = ["Linear", "ReLU", "LeakyReLU", "Dropout", "Finish"]
+            if is_image:
+                choices = ["Conv2d", "MaxPool2d", "VGG Block", "Flatten"] + choices
+            
+            layer_type = Prompt.ask(
+                "Add Layer", 
+                choices=choices, 
+                default="Linear" if not is_image else "Conv2d"
+            )
+            
+            if layer_type == "Finish":
+                break
+            
+            # --- CNN LAYERS ---
+            if layer_type == "Conv2d":
+                while True:
+                    try:
+                        out_channels = int(Prompt.ask("Output Channels", default="32"))
+                        kernel_size = int(Prompt.ask("Kernel Size", default="3"))
+                        stride = int(Prompt.ask("Stride", default="1"))
+                        padding = int(Prompt.ask("Padding", default="1"))
+                        if out_channels > 0 and kernel_size > 0:
+                            break
+                        console.print("[red]Values must be positive[/red]")
+                    except ValueError:
+                        console.print("[red]Invalid input. Please enter integers.[/red]")
+                
+                in_channels = current_shape[0]
+                layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding))
+                
+                # Update shape: H_out = floor((H_in + 2*padding - dilation*(kernel_size-1) - 1)/stride + 1)
+                h_out = int((current_shape[1] + 2*padding - 1*(kernel_size-1) - 1)/stride + 1)
+                w_out = int((current_shape[2] + 2*padding - 1*(kernel_size-1) - 1)/stride + 1)
+                current_shape = (out_channels, h_out, w_out)
+                
+            elif layer_type == "MaxPool2d":
+                while True:
+                    try:
+                        kernel_size = int(Prompt.ask("Kernel Size", default="2"))
+                        stride = int(Prompt.ask("Stride", default="2"))
+                        if kernel_size > 0:
+                            break
+                    except ValueError:
+                        console.print("[red]Invalid input.[/red]")
+                        
+                layers.append(nn.MaxPool2d(kernel_size, stride))
+                h_out = int((current_shape[1] - 1*(kernel_size-1) - 1)/stride + 1)
+                w_out = int((current_shape[2] - 1*(kernel_size-1) - 1)/stride + 1)
+                current_shape = (current_shape[0], h_out, w_out)
+                
+            elif layer_type == "VGG Block":
+                # Conv -> ReLU -> MaxPool
+                out_channels = 64 if current_shape[0] < 64 else current_shape[0] * 2
+                console.print(f"[dim]Adding VGG Block (Conv{current_shape[0]}->{out_channels}, ReLU, MaxPool2)[/dim]")
+                
+                layers.append(nn.Conv2d(current_shape[0], out_channels, kernel_size=3, padding=1))
+                layers.append(nn.ReLU())
+                layers.append(nn.MaxPool2d(2, 2))
+                
+                # Update shape (Conv3x3 pad1 preserves size, MaxPool2x2 halves it)
+                h_out = current_shape[1] // 2
+                w_out = current_shape[2] // 2
+                current_shape = (out_channels, h_out, w_out)
+
+            elif layer_type == "Flatten":
+                layers.append(nn.Flatten())
+                flat_dim = current_shape[0] * current_shape[1] * current_shape[2]
+                current_shape = (flat_dim,)
+
+            # --- LINEAR LAYERS ---    
+            elif layer_type == "Linear":
+                # Auto-flatten if input is 3D image
+                if len(current_shape) == 3:
+                    console.print("[yellow]Auto-flattening 3D input for Linear layer...[/yellow]")
+                    layers.append(nn.Flatten())
+                    flat_dim = current_shape[0] * current_shape[1] * current_shape[2]
+                    current_shape = (flat_dim,)
+                
+                while True:
+                    try:
+                        out_features = int(Prompt.ask("Output Size", default="128"))
+                        if out_features > 0:
+                            break
+                        console.print("[red]Size must be positive[/red]")
+                    except ValueError:
+                        console.print("[red]Invalid input. Please enter an integer.[/red]")
+                
+                layers.append(nn.Linear(current_shape[0], out_features))
+                current_shape = (out_features,)
+                
+            elif layer_type == "ReLU":
+                layers.append(nn.ReLU())
+            elif layer_type == "LeakyReLU":
+                layers.append(nn.LeakyReLU())
+            elif layer_type == "Dropout":
+                while True:
+                    try:
+                        p = float(Prompt.ask("Dropout Probability", default="0.2"))
+                        if 0.0 <= p <= 1.0:
+                            break
+                        console.print("[red]Probability must be between 0 and 1[/red]")
+                    except ValueError:
+                        console.print("[red]Invalid input. Please enter a number.[/red]")
+                
+                layers.append(nn.Dropout(p))
+                
+            console.print(f"[dim]Added {layer_type}[/dim]")
+            
+        # Add final classifier
+        if len(current_shape) == 3:
+             layers.append(nn.Flatten())
+             current_shape = (current_shape[0] * current_shape[1] * current_shape[2],)
+             
+        layers.append(nn.Linear(current_shape[0], output_dim))
+        model = nn.Sequential(*layers)
+        
+        console.print("\n[bold green]✓ Model Constructed:[/bold green]")
+        console.print(model)
+        
+        if not Confirm.ask("\nStart Training?"):
+            return
+
+        # 3. Setup Framework
+        from airbornehrs.core import AdaptiveFramework
+        from airbornehrs.presets import PRESETS
+        import torch.optim as optim
+        from torchvision import datasets, transforms
+        
+        config = PRESETS.fast()
+        config.enable_consciousness = True
+        framework = AdaptiveFramework(model, config)
+        
+        # 4. Load Data
+        console.print("[dim]Loading data...[/dim]")
+        if dataset_name == "Synthetic":
+            train_loader = [(torch.randn(32, 20), torch.randint(0, 2, (32,))) for _ in range(100)]
+        else:
+            transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+            if dataset_name == "MNIST":
+                ds = datasets.MNIST('./data', train=True, download=True, transform=transform)
+            else:
+                ds = datasets.FashionMNIST('./data', train=True, download=True, transform=transform)
+            train_loader = torch.utils.data.DataLoader(ds, batch_size=64, shuffle=True)
+            
+        # 5. Training Loop
+        console.clear()
+        console.print(Panel(f"[bold]Training on {dataset_name}[/bold]", border_style="green"))
+        
+        layout = Layout()
+        layout.split_column(
+            Layout(name="metrics", size=10),
+            Layout(name="consciousness")
+        )
+        
+        with Live(layout, refresh_per_second=4) as live:
+            step = 0
+            for epoch in range(1): # Demo: 1 epoch
+                for batch_idx, (data, target) in enumerate(train_loader):
+                    # Only flatten if model expects 1D input (i.e. first layer is Linear)
+                    # But here we built the model to handle whatever shape we tracked.
+                    # If the user built a CNN, the model expects (B, 1, 28, 28).
+                    # If the user built a MLP, the model expects (B, 784).
+                    
+                    # Check first layer type to decide if we flatten
+                    first_layer_is_linear = isinstance(model[0], nn.Linear) or (isinstance(model[0], nn.Flatten) and isinstance(model[1], nn.Linear))
+                    
+                    # Actually, we can just check if the model starts with a Conv layer
+                    is_cnn = any(isinstance(m, nn.Conv2d) for m in model)
+                    
+                    if dataset_name != "Synthetic":
+                        if not is_cnn:
+                            data = data.view(data.size(0), -1) # Flatten for MLP
+                        # Else keep as (B, 1, 28, 28) for CNN
+                        
+                    # TRAIN STEP
+                    # Ensure target is 1D for classification
+                    if target.dim() > 1:
+                         target = target.view(-1)
+                         
+                    metrics = framework.train_step(data, target_data=target)
+                    
+                    # Update UI
+                    metrics_table = Table(title="Training Metrics")
+                    metrics_table.add_column("Loss", style="red")
+                    metrics_table.add_column("Mode", style="yellow")
+                    metrics_table.add_row(
+                        f"{metrics['loss']:.4f}",
+                        metrics['mode']
+                    )
+                    
+                    cons_panel = Panel("Consciousness Inactive")
+                    if framework.consciousness:
+                        raw = getattr(framework.consciousness, "last_metrics", {})
+                        if raw:
+                            emo = raw.get('emotion', 'neutral')
+                            surprise = raw.get('surprise', 0.0)
+                            cons_panel = Panel(
+                                f"Emotion: [bold magenta]{emo.upper()}[/bold magenta]\n"
+                                f"Surprise: {surprise:.2f}\n"
+                                f"Confidence: {raw.get('confidence', 0.0):.2f}",
+                                title="🧠 Machine Consciousness",
+                                border_style="magenta"
+                            )
+                    
+                    layout["metrics"].update(metrics_table)
+                    layout["consciousness"].update(cons_panel)
+                    
+                    step += 1
+                    if step > 200: # Short demo
+                        break
+                if step > 200:
+                    break
+                    
+        console.print("\n[bold green]✓ Training Complete![/bold green]")
+        
+        # --- SAVE & INTEGRATE ---
+        if Confirm.ask("Save this model?"):
+            filename = Prompt.ask("Enter filename", default=f"model_{int(time.time())}.pth")
+            torch.save(model.state_dict(), filename)
+            console.print(f"[green]✓ Model saved to {filename}[/green]")
+            
+            if Confirm.ask("\n🚀 Test this model in the Interactive Simulation (Option 1)?"):
+                InteractiveDemo.run_quick_demo(model=model)
+                return
+
+        Prompt.ask("Press Enter to return to menu")
 
 
 # --- FALLBACK UI ---
@@ -813,8 +1082,8 @@ def main():
             while True:
                 choice = Prompt.ask(
                     "\n[bold]Select option[/bold]",
-                    choices=["1", "2", "3", "4"],
-                    default="4"
+                    choices=["1", "2", "3", "4", "5"],
+                    default="5"
                 )
                 
                 if choice == "1":
@@ -824,6 +1093,9 @@ def main():
                 elif choice == "3":
                     export_system_report()
                 elif choice == "4":
+                    ModelPlayground.run()
+                    run_interactive_dashboard() # Re-render menu
+                elif choice == "5":
                     console.print("\n[bold green]👋 Goodbye![/bold green]\n")
                     break
                 

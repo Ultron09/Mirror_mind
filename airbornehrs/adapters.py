@@ -91,81 +91,58 @@ class AdapterBank:
                     'out_dim': out_dim
                 }
 
-    def apply(self, idx: int, activation: torch.Tensor) -> torch.Tensor:
-        """Apply adapter to activation in-place when possible and return tensor."""
-        # 1. Fast exit if no adapter exists for this layer
+    def apply(self, idx: int, activation: torch.Tensor, module_type: type) -> torch.Tensor:
+        """Apply adapter to activation, using module_type to handle tensor shapes correctly."""
         if idx not in self.adapters:
             return activation
 
         entry = self.adapters[idx]
         adapter_type = entry.get('type')
 
-        # 2. Fast exit if adapter is empty placeholder
         if adapter_type == 'empty':
             return activation
 
         try:
             # === FiLM ADAPTER (Scalar Scale & Shift) ===
             if adapter_type == 'film':
-                scale = entry['scale']
-                shift = entry['shift']
-                # PyTorch broadcasting automatically handles (Batch, C, H, W) vs (1, 1, 1, 1)
-                # No complex logic needed here.
-                return activation * scale + shift
+                return activation * entry['scale'] + entry['shift']
 
             # === BOTTLENECK ADAPTER (Low-Rank MLP) ===
             elif adapter_type == 'bneck':
+                orig_dtype = activation.dtype
                 Wdown = entry['Wdown']
                 Wup = entry['Wup']
                 bdown = entry['bdown']
                 bup = entry['bup']
 
-                # Case A: Standard MLP / Transformers (Batch, Features)
-                # Logic: We must check specific dimensions first.
-                if activation.dim() == 2:
-                    # Down projection: z = x @ Wdown + bdown
-                    z = torch.addmm(bdown, activation, Wdown)
-                    
-                    # Non-linearity (Critical for bottleneck performance)
-                    # using torch.nn.functional directly to avoid missing import errors
-                    z = torch.nn.functional.silu(z) 
-                    
-                    # Up projection: res = z @ Wup + bup
-                    res = torch.addmm(bup, z, Wup)
-                    
-                    # Residual connection
-                    return activation + res
-
-                # Case B: CNNs / Spatial Data (Batch, Channels, H, W, ...)
-                # Catches 3D, 4D (Images), 5D (Video) tensors correctly
-                elif activation.dim() > 2:
-                    # Store original shape to restore later
+                # Case A: Convolutional Layers (Channel-First)
+                is_conv = module_type in [nn.Conv1d, nn.Conv2d]
+                if is_conv and activation.dim() > 2:
                     orig_shape = activation.shape
+                    # Flatten spatial/temporal dims: (B, C, H, W) -> (B, C, N)
+                    x_flat = activation.flatten(2)
+                    # Permute for linear layer: (B, C, N) -> (B, N, C)
+                    x_flat = x_flat.permute(0, 2, 1)
                     
-                    # Flatten all spatial dims into one sequence dimension
-                    # Transformation: (B, C, H, W) -> (B, C, N) -> (B, N, C)
-                    # This aligns channels to the last dimension for the linear layer
-                    x_flat = activation.flatten(2).permute(0, 2, 1)
-                    
-                    # Apply Down Projection
-                    z = x_flat @ Wdown + bdown
-                    z = torch.nn.functional.silu(z)
-                    
-                    # Apply Up Projection
-                    res = z @ Wup + bup # Output shape: (B, N, C)
+                    # Apply adapter
+                    z = F.silu(F.linear(x_flat.to(Wdown.dtype), Wdown.t(), bdown))
+                    res = F.linear(z, Wup.t(), bup)
                     
                     # Restore original shape: (B, N, C) -> (B, C, N) -> (B, C, H, W)
                     res = res.permute(0, 2, 1).view(*orig_shape)
-                    
-                    # Residual connection
-                    return activation + res
+                    return activation + res.to(orig_dtype)
+
+                # Case B: General Purpose (for Linear, LSTM, MHA, etc.)
+                # Assumes feature dimension is the last dimension.
+                else:
+                    z = F.silu(F.linear(activation.to(Wdown.dtype), Wdown.t(), bdown))
+                    res = F.linear(z, Wup.t(), bup)
+                    return activation + res.to(orig_dtype)
 
         except Exception as e:
-            # Failsafe: If anything goes wrong (e.g. OOM, shape mismatch), 
-            # return original activation so training doesn't crash.
+            # Failsafe to prevent crashes
             return activation
 
-        # Default fallback
         return activation
 
     def parameters(self) -> Iterator[nn.Parameter]:

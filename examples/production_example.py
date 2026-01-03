@@ -1,19 +1,16 @@
 """
-MirrorMind Quick Start Guide (Sync V2.0)
-========================================
-A simple "Train -> Serve" example for AirborneHRS.
-Demonstrates Reptile Meta-Learning integration.
+MirrorMind Production Example (Framework v7.x)
+==============================================
+A simple "Train -> Serve" example for the AirborneHRS framework.
+This demonstrates saving a trained adaptive model and loading it for
+online learning in a production-like setting.
 """
 
 import torch
 import torch.nn as nn
 import os
-from airbornehrs import (
-    AdaptiveFramework,
-    AdaptiveFrameworkConfig,
-    ProductionAdapter,
-    InferenceMode
-)
+from airbornehrs.core import AdaptiveFramework, AdaptiveFrameworkConfig
+from airbornehrs.production import ProductionAdapter, InferenceMode
 
 # Define a simple model to wrap
 class SimpleBrain(nn.Module):
@@ -29,23 +26,23 @@ class SimpleBrain(nn.Module):
         return self.net(x)
 
 def main():
-    print("🚀 MirrorMind Quick Start Initiated...")
+    print("🚀 MirrorMind Production Example Initiated...")
 
     # ==========================================
     # 1. CONFIGURATION
     # ==========================================
     BATCH_SIZE = 16
     EPOCHS = 3
+    MODEL_PATH = "my_adaptive_model.pt"
     
-    # Enable compilation if on Linux/CUDA, else disable for safety
-    is_compile = torch.cuda.is_available() and os.name != 'nt'
+    # Use CUDA if available
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     config = AdaptiveFrameworkConfig(
-        model_dim=64,           
-        num_layers=2,           
         learning_rate=0.001,
-        compile_model=is_compile,
-        device='cuda' if torch.cuda.is_available() else 'cpu'
+        enable_consciousness=True, # Enable for metrics and dynamic learning
+        memory_type='hybrid',      # Use memory protection
+        device=device
     )
 
     # ==========================================
@@ -53,82 +50,76 @@ def main():
     # ==========================================
     print(f"\n[PHASE 1] Training Model on {config.device}...")
     
-    base_model = SimpleBrain(input_dim=64, output_dim=64)
+    base_model = SimpleBrain(input_dim=64, output_dim=10)
     
-    # Wrap it with MirrorMind (The "Consciousness" Layer)
-    # NOTE: This initializes MetaController internally (Sync fix applied)
+    # Wrap the model with the AdaptiveFramework
     framework = AdaptiveFramework(base_model, config)
     
     # Create Dummy Data
-    X_train = torch.randn(100, 10, 64).to(config.device)
-    y_train = torch.randn(100, 10, 64).to(config.device)
+    x_train = torch.randn(100, 64).to(config.device)
+    y_train = torch.randint(0, 10, (100,)).to(config.device)
 
-    # Train Loop
+    # Standard Training Loop
     for epoch in range(EPOCHS):
         total_loss = 0
-        for i in range(0, len(X_train), BATCH_SIZE):
-            batch_X = X_train[i:i+BATCH_SIZE]
+        for i in range(0, len(x_train), BATCH_SIZE):
+            batch_x = x_train[i:i+BATCH_SIZE]
             batch_y = y_train[i:i+BATCH_SIZE]
             
-            # train_step handles:
-            # 1. Forward Pass
-            # 2. Introspection (Uncertainty)
-            # 3. EWC Penalty (if active)
-            # 4. Reptile Meta-Update
-            metrics = framework.train_step(batch_X, batch_y)
+            # framework.train_step handles all the complexity internally
+            metrics = framework.train_step(batch_x, target_data=batch_y)
             total_loss += metrics['loss']
             
-        avg_loss = total_loss / (len(X_train) // BATCH_SIZE)
-        print(f"   Epoch {epoch+1}: Loss = {avg_loss:.4f}")
+        avg_loss = total_loss / (len(x_train) // BATCH_SIZE)
+        print(f"   Epoch {epoch+1}/{EPOCHS}: Avg Loss = {avg_loss:.4f}")
 
-    # Save the "Brain"
-    framework.save_checkpoint("my_model.pt")
-    print("   ✅ Model saved to 'my_model.pt'")
+    # Save the trained adaptive model
+    framework.save_checkpoint(MODEL_PATH)
+    print(f"   ✅ Model and configuration saved to '{MODEL_PATH}'")
 
 
     # ==========================================
-    # 3. THE WILD (Production Phase)
+    # 3. THE WILD (Production/Inference Phase)
     # ==========================================
     print("\n[PHASE 2] Deploying to Production...")
 
-    # FIX: Initialize a fresh architecture for production
-    production_model = SimpleBrain(input_dim=64, output_dim=64)
+    # For loading, we need a fresh instance of the base model architecture
+    production_model_architecture = SimpleBrain(input_dim=64, output_dim=10)
 
-    # Load into Production Adapter
-    # InferenceMode.ONLINE enables continuous learning (Reptile)
+    # Load the trained framework into the ProductionAdapter
+    # This correctly restores the model weights, optimizer state, and CONFIGURATION.
     adapter = ProductionAdapter.load_checkpoint(
-        "my_model.pt",
-        model=production_model,  # <--- PASS THE MODEL HERE
-        inference_mode=InferenceMode.ONLINE 
+        MODEL_PATH,
+        model=production_model_architecture,
+        inference_mode=InferenceMode.ONLINE # Enable continuous learning
     )
-    print("   ✅ Adapter loaded. Online Learning: ENABLED")
+    print("   ✅ Adapter loaded. Online Learning is ENABLED.")
 
-    # Simulate Live Data Stream
-    new_data = torch.randn(1, 10, 64).to(config.device)
-    ground_truth = torch.randn(1, 10, 64).to(config.device)
+    # Simulate a new piece of data arriving in a live stream
+    new_data = torch.randn(1, 64).to(config.device)
+    ground_truth = torch.randint(0, 10, (1,)).to(config.device)
 
-    print("\n   Incoming Request...")
+    print("\n   Receiving new data point...")
     
-    # Run Prediction + Learn (One Step)
-    # update=True triggers the Meta-Controller to adjust weights instantly
+    # Run prediction AND learn from it in a single step
+    # update=True triggers the online learning mechanism
     output = adapter.predict(new_data, update=True, target=ground_truth)
 
-    # Check Vitals
+    # Check the model's vitals after the update
     metrics = adapter.get_metrics()
-    print(f"   📊 Prediction Complete.")
-    print(f"      Current Uncertainty: {metrics.get('uncertainty_mean', 0.0):.4f}")
-    
-    # Robustly fetch learning rate (depends on MetaController state)
-    lr = metrics.get('learning_rate', metrics.get('current_lr', 0.0))
-    print(f"      Plasticity Rate:     {lr:.6f}")
-    
-    # Verify Reptile status
-    reptile_active = metrics.get('reptile_active', False)
-    print(f"      Reptile Active:      {reptile_active}")
+    print(f"   📊 Prediction and update complete.")
+    print(f"      Model Emotion:     {metrics.get('emotion', 'N/A')}")
+    if 'learning_multiplier' in metrics:
+        print(f"      Learning Multiplier: {metrics.get('learning_multiplier'):.2f}")
+    if 'learning_rate' in metrics:
+        print(f"      Meta LR:             {metrics.get('learning_rate')}")
+    if 'reptile_active' in metrics:
+        print(f"      Reptile Active:      {metrics.get('reptile_active', False)}")
 
 if __name__ == "__main__":
     try:
-
         main()
     except Exception as e:
         print(f"❌ An error occurred: {e}")
+        import traceback
+        traceback.print_exc()
