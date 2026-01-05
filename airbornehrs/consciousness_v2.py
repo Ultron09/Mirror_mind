@@ -59,9 +59,20 @@ class MemoryEpisode:
         surprise_sim = 1.0 / (1.0 + abs(current_surprise - self.surprise) + 1e-6)
         error_sim = 1.0 / (1.0 + abs(current_error - self.error) + 1e-6)
         
-        # NOTE: Content similarity removed as it proved noisy for this task
+        content_sim = 0.0
+        if current_features is not None and self.features is not None:
+            # Cosine similarity for content (Task Context)
+            # Use MEAN feature vector to be robust to batch order/size
+            v1 = current_features.float().mean(dim=0).view(-1)
+            v2 = self.features.float().mean(dim=0).view(-1)
+            
+            if v1.shape == v2.shape:
+                content_sim = F.cosine_similarity(v1.unsqueeze(0), v2.unsqueeze(0)).item()
+                # Normalize to 0-1 range
+                content_sim = (content_sim + 1) / 2
         
-        return 0.6 * surprise_sim + 0.4 * error_sim
+        # Weighted sum: Content is KING for few-shot learning
+        return 0.7 * content_sim + 0.2 * surprise_sim + 0.1 * error_sim
 
 
 class EmotionalSystem:
@@ -431,6 +442,49 @@ class AdaptiveAwareness:
             self.consciousness_level = 0.5 + (task_complexity - 0.5) * 0.5
 
 
+class GlobalWorkspace(nn.Module):
+    """
+    The 'Theater of Consciousness'.
+    A shared working memory that integrates and broadcasts information.
+    """
+    def __init__(self, dim=256, num_slots=8, num_heads=4):
+        super().__init__()
+        self.dim = dim
+        self.slots = nn.Parameter(torch.randn(1, num_slots, dim))
+        self.attention = nn.MultiheadAttention(dim, num_heads, batch_first=True)
+        self.norm = nn.LayerNorm(dim)
+        self.memory_gate = nn.GRUCell(dim, dim) # Recurrence
+        
+    def forward(self, inputs: torch.Tensor, prev_slots: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Process inputs through the workspace.
+        inputs: [B, N, D] or [B, D]
+        """
+        if inputs.dim() == 2: inputs = inputs.unsqueeze(1)
+        B = inputs.size(0)
+        
+        # Initialize or use previous state
+        if prev_slots is None:
+            slots = self.slots.expand(B, -1, -1) # [B, S, D]
+        else:
+            slots = prev_slots
+            
+        # 1. Competition / Read (Slots attend to Inputs)
+        # Query: Slots, Key/Value: Inputs
+        # "What is important right now?"
+        attn_out, _ = self.attention(slots, inputs, inputs)
+        slots = self.norm(slots + attn_out)
+        
+        # 2. Recurrence (Memory Update)
+        # Update each slot independently using GRU
+        # Reshape to [B*S, D] for GRUCell
+        slots_flat = slots.view(-1, self.dim)
+        slots_new = self.memory_gate(slots_flat, slots_flat) # Simple self-recurrence
+        slots = slots_new.view(B, -1, self.dim)
+        
+        return slots
+
+
 class EnhancedConsciousnessCore:
     """
     Integrated consciousness system combining all components.
@@ -451,6 +505,10 @@ class EnhancedConsciousnessCore:
         self.self_model = SelfModel()
         self.personality = Personality()
         self.adaptive_awareness = AdaptiveAwareness()
+        
+        # Global Workspace (The "Mind's Eye")
+        self.global_workspace = GlobalWorkspace(dim=feature_dim)
+        self.current_thought = None # Current state of workspace
         
         # Basic tracking
         self.feature_dim = feature_dim
@@ -505,6 +563,17 @@ class EnhancedConsciousnessCore:
             novelty = torch.norm(features.mean(dim=0) - self.mean_feature_vector).item()
             # Update mean feature vector
             self.mean_feature_vector = 0.99 * self.mean_feature_vector + 0.01 * features.mean(dim=0)
+
+            # [V7.3] Process Thought (Global Workspace)
+            # We treat the features as inputs to the workspace
+            try:
+                # Ensure features match workspace dim. If not, project?
+                # For now assuming feature_dim matches.
+                if features.size(-1) == self.feature_dim:
+                    self.current_thought = self.global_workspace(features, self.current_thought)
+            except Exception:
+                pass # Dimension mismatch or other error, skip thought
+
 
         # 3. Meta-Cognition Reflection
         meta_stats = self.metacognition.reflect_on_learning(

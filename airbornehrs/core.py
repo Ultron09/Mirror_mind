@@ -29,6 +29,7 @@ from .memory import UnifiedMemoryHandler, PrioritizedReplayBuffer, AdaptiveRegul
 from .meta_controller import MetaController, MetaControllerConfig
 from .consciousness_v2 import ConsciousnessCore
 from .adapters import AdapterBank
+from .moe import SparseMoE
 
 # OPTIMIZATION: Use Tensor Cores on Ampere+ GPUs
 torch.set_float32_matmul_precision('high')
@@ -102,6 +103,12 @@ class AdaptiveFrameworkConfig:
     use_intrinsic_motivation: bool = True
     consciousness_buffer_size: int = 5000
     novelty_threshold: float = 2.0
+
+    # --- V7.1: CORTEX ENGINE (MoE) ---
+    use_moe: bool = False
+    num_experts: int = 4
+    top_k_experts: int = 2
+    input_dim: int = 0 # Required for MoE gating if > 0. Else uses model_dim.
 
     @classmethod
     def production(cls):
@@ -295,20 +302,33 @@ class AdaptiveFramework(nn.Module):
         self.device = device
         self.logger = self._setup_logging()
         
+        # 1. The "Body" (Base Model)
         self.model = user_model.to(self.device)
         
-        # 1. Initialize Adapters & Hooks (CRITICAL: Must be before optimizer)
+        # [V7.1] MoE Transformation
+        if getattr(config, 'use_moe', False):
+            moe_input_dim = config.input_dim if config.input_dim > 0 else config.model_dim
+            self.logger.info(f"🧠 Transforming Cortex into Sparse MoE ({config.num_experts} Experts, Top-{config.top_k_experts})...")
+            self.model = SparseMoE(
+                base_model=self.model,
+                input_dim=moe_input_dim,
+                num_experts=config.num_experts,
+                top_k=config.top_k_experts
+            ).to(self.device)
+            self.logger.info("   ✅ Transformation Complete. The Mind is now distributed.")
+
+        # 2. Initialize Adapters & Hooks (CRITICAL: Must be before optimizer)
         self._init_adapters_and_hooks()
         
-        # 2. The "Mind" (RL Policy)
+        # 3. The "Mind" (RL Policy)
         self.introspection_engine = IntrospectionEngine(
             input_dim=config.telemetry_dim
         ).to(self.device)
         
-        # 3. The "Cortex" (Weight Editor)
+        # 4. The "Cortex" (Weight Editor)
         self.monitor = PerformanceMonitor(self.model, config, self.device)
         
-        # 4. Memory System (Unified Handler V7.0)
+        # 5. Memory System (Unified Handler V7.0)
         # We explicitly use UnifiedMemoryHandler, removing all EWC legacy code.
         self.memory = UnifiedMemoryHandler(
             self.model,
@@ -320,7 +340,7 @@ class AdaptiveFramework(nn.Module):
         )
         self.logger.info(f"[BRAIN] Unified Memory System Online ({config.memory_type})")
         
-        # 5. Experience Replay
+        # 6. Experience Replay
         self.feedback_buffer = FeedbackBuffer(config, self.device)
         if getattr(config, 'use_prioritized_replay', True):
             self.prioritized_buffer = PrioritizedReplayBuffer(
@@ -330,14 +350,14 @@ class AdaptiveFramework(nn.Module):
         else:
             self.prioritized_buffer = None
         
-        # 6. Adaptive Regularization & Consolidation
+        # 7. Adaptive Regularization & Consolidation
         self.adaptive_reg = AdaptiveRegularization(base_lambda=0.4)
         self.consolidation_scheduler = DynamicConsolidationScheduler(
             min_interval=getattr(config, 'consolidation_min_interval', 30),
             max_interval=getattr(config, 'consolidation_max_interval', 100)
         )
         
-        # 7. Consciousness Layer
+        # 8. Consciousness Layer
         if getattr(config, 'enable_consciousness', False):
             self.consciousness = ConsciousnessCore(
                 feature_dim=config.model_dim,
@@ -348,7 +368,7 @@ class AdaptiveFramework(nn.Module):
         else:
             self.consciousness = None
         
-        # 8. Optimizers
+        # 9. Optimizers
         self.optimizer = AdamW(self.model.parameters(), lr=config.learning_rate)
         
         # Adapter Optimizer (CRITICAL FIX: Now sees parameters because _init_adapters_and_hooks ran first)
@@ -432,7 +452,7 @@ class AdaptiveFramework(nn.Module):
                     if out_dim:
                         self.adapter_bank.ensure_index(idx, out_dim=int(out_dim))
                 
-                module.register_forward_pre_hook(self._generate_fast_hook(idx, type(module)))
+                module.register_forward_hook(self._generate_fast_hook(idx, type(module)))
                 idx += 1
         
         self.num_tracked_layers = idx
@@ -444,9 +464,9 @@ class AdaptiveFramework(nn.Module):
         )
 
     def _generate_fast_hook(self, layer_idx, module_type):
-        def hook(module, inputs):
+        def hook(module, inputs, output):
             try:
-                inp = inputs[0]
+                inp = output
                 if isinstance(inp, torch.Tensor):
                     # Fast Telemetry
                     with torch.no_grad():
@@ -461,7 +481,7 @@ class AdaptiveFramework(nn.Module):
                     if self.adapter_bank:
                         adapted = self.adapter_bank.apply(layer_idx, inp, module_type)
                         if adapted is not inp:
-                            return (adapted,) + inputs[1:]
+                            return adapted
             except Exception:
                 pass
             return None
@@ -469,6 +489,14 @@ class AdaptiveFramework(nn.Module):
 
     def forward(self, *args, **kwargs):
         output = self.model(*args, **kwargs)
+        
+        # [V7.1] MoE Handling
+        # If model is MoE, it returns (output, indices)
+        moe_indices = None
+        if isinstance(output, tuple) and len(output) == 2 and isinstance(output[1], torch.Tensor):
+             # Check if second element looks like indices [B, k]
+             if output[1].dtype == torch.long:
+                 output, moe_indices = output
         
         log_var = torch.tensor(0.0).to(self.device)
         affine_modifiers = None
@@ -541,8 +569,14 @@ class AdaptiveFramework(nn.Module):
         cons_metrics = {}
         if self.consciousness:
             try:
-                # Use latent features if available, otherwise fallback to telemetry
-                features_for_cons = latent_features if latent_features is not None else self.telemetry_buffer.detach()
+                # Use latent features if available, otherwise fallback to input or telemetry
+                if latent_features is not None:
+                    features_for_cons = latent_features
+                elif len(model_inputs) > 0 and isinstance(model_inputs[0], torch.Tensor):
+                    features_for_cons = model_inputs[0]
+                else:
+                    features_for_cons = self.telemetry_buffer.detach()
+                
                 cons_metrics = self.consciousness.observe(*model_inputs, y_true=target_data, y_pred=pred, features=features_for_cons)
                 self.consciousness.last_metrics = cons_metrics
             except Exception as e:
@@ -554,7 +588,6 @@ class AdaptiveFramework(nn.Module):
 
         # 4. Emotional Control
         emotion = cons_metrics.get('emotion', 'confident')
-        
         # Use dynamic multiplier if available (V7.2+), otherwise fallback to static map
         if 'learning_rate_multiplier' in cons_metrics:
             lr_multiplier = cons_metrics['learning_rate_multiplier']
@@ -562,49 +595,25 @@ class AdaptiveFramework(nn.Module):
         else:
             plasticity_gate, apply_memory, lr_multiplier = self.get_emotional_parameters(emotion)
         
+        # [NEW] REFLEX TRIGGER (V7.3)
+        current_surprise = cons_metrics.get('surprise', 0.0)
+        if current_surprise > 3.0:
+            if self.step_count % 10 == 0: 
+                 self.logger.warning(f"⚡ REFLEX TRIGGERED: Surprise Z-Score {current_surprise:.2f} > 3.0. Boosting Plasticity (10x)!")
+            lr_multiplier = 10.0 
+            plasticity_gate = True
+
         # Adjust LR
         for g in self.optimizer.param_groups:
             g['lr'] = self.config.learning_rate * lr_multiplier
 
-        # 5. Consolidation
-        trigger_consolidation, reason = self.consolidation_scheduler.should_consolidate(
-            current_step=self.step_count, 
-            z_score=cons_metrics.get('surprise', 0), 
-            mode=emotion, 
-            criterion=self.config.consolidation_criterion
-        )
-        
-        if trigger_consolidation:
-            self.memory.consolidate(
-                feedback_buffer=self.feedback_buffer,
-                current_step=self.step_count,
-                z_score=cons_metrics.get('surprise', 0),
-                mode=emotion
-            )
-            self.consolidation_scheduler.record_consolidation(self.step_count)
-            fp = self.telemetry_buffer.mean(dim=0)
-            self.memory.save_task_memory(adapters=self.adapter_bank, fingerprint=fp)
-
-        # 6. Backward Pass with Memory Penalty
-        if self.memory.is_enabled() and apply_memory:
-            penalty = self.memory.compute_penalty(adaptive_mode=emotion)
-            loss += penalty
-        
-        # 7. Optimizer Step
-        # Scale gradients by plasticity gate
-        (loss * plasticity_gate).backward(retain_graph=True)
-        
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.gradient_clip_norm)
+        # 5. Backward Pass & Optimization
+        if plasticity_gate:
+            loss.backward(retain_graph=True) # Retain for meta-step
+            self.optimizer.step()
             
-        param_before = self.memory.before_step_snapshot()
-        self.optimizer.step()
-        self.memory.accumulate_path(param_before)
-            
-        if self.adapter_optimizer:
-            self.adapter_optimizer.step()
-            for p in self.adapter_bank.parameters():
-                if p.data.norm() > self.config.adapter_max_norm:
-                    p.data.mul_(self.config.adapter_max_norm / (p.data.norm() + 1e-6))
+            if self.adapter_optimizer:
+                self.adapter_optimizer.step()
 
         # 8. Meta-Learning
         if self.reward_baseline == 0.0: self.reward_baseline = current_loss_val
@@ -661,7 +670,7 @@ class AdaptiveFramework(nn.Module):
             "z_score": float(cons_metrics.get('surprise', 0)),
             "mode": emotion
         }
-    
+
     def learn_from_buffer(self, batch_size: int = 32, num_epochs: int = 1):
         """
         Active Replay ("Dreaming") for multi-input models.
