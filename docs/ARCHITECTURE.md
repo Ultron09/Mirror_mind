@@ -1,4 +1,4 @@
-# MirrorMind Framework Architecture
+# MirrorMind Framework Architecture (v1.1.1 "Sentient" Edition)
 
 ## 1. High-Level Overview
 
@@ -11,6 +11,7 @@ The four loops are:
 2.  **The Memory Loop:** Prevents catastrophic forgetting of past knowledge.
 3.  **The Meta Loop:** Enables the model to "learn to learn" and adapt more quickly.
 4.  **The Introspection Loop:** Provides high-level cognitive control and dynamic plasticity.
+5.  **The System 2 Loop (V8.0):** Recursive Global Workspace for multi-step reasoning.
 
 ![High-Level Diagram](https://i.imgur.com/your-diagram-url.png)
 *(Note: A proper diagram should be created and linked here)*
@@ -53,6 +54,16 @@ The four loops are:
     2.  **Emotional Modulation:** It maps these metrics to a simulated "emotional state" (e.g., `CURIOUS`, `BORED`, `FRUSTRATED`).
     3.  **Learning Rate Adjustment:** Based on the emotion, it produces a `learning_multiplier` that is applied to the task loss. For example, if the model is 'frustrated' (high error, low progress), it might increase the learning rate to try and break out of a local minimum. If 'bored' (low error, low novelty), it might decrease it to save computational effort.
     4.  **Dynamic Plasticity:** The `AdapterBank` injects small, parameter-efficient "adapter" modules (like FiLM or Bottleneck layers) into the base model. The Introspection Loop can decide which adapters to activate for a given task, allowing the model to learn task-specific knowledge in these adapters while leaving the core pre-trained weights largely untouched. This is a key mechanism for both preventing forgetting and enabling multi-task learning.
+
+### 2.5. The System 2 Loop (V8.0): Recursive Reasoning
+
+-   **Purpose:** To enable multi-step "thinking" for complex problems that require more than a single forward pass.
+-   **Component:** `RecursiveGlobalWorkspace` in `ConsciousnessCore` (`airbornehrs/consciousness_v2.py`)
+-   **Mechanism:**
+    1.  **Perception:** Input features are projected into a global workspace.
+    2.  **Recursive Attention:** Multi-head attention is applied iteratively, allowing the model to "think" about the problem.
+    3.  **Thought Traces:** Each iteration is logged to `current_thought_trace`, enabling introspection of the reasoning process.
+    4.  **Adaptive Depth:** The number of iterations can adapt based on problem complexity (confusion level).
 
 ---
 

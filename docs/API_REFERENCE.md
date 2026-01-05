@@ -1,4 +1,4 @@
-# MirrorMind API Reference (Framework v7.x)
+# MirrorMind API Reference (Framework v1.1.1 "Sentient" Edition)
 
 This document provides API documentation for the core public classes and configuration objects in the MirrorMind framework.
 
@@ -60,7 +60,7 @@ def train_step(
     record_stats: bool = True
 ) -> Dict[str, Any]:
 ```
--   **Returns:** A dictionary containing metrics from the step, such as `loss`, `mse`, `z_score`, and `mode`.
+-   **Returns:** A dictionary containing metrics from the step, such as `loss`, `reg_loss`, `total_loss`, `emotion`, `surprise`, `uncertainty`, and `confusion`.
 
 #### `save_checkpoint`
 Saves the state of the model and its components to a file.
@@ -112,7 +112,7 @@ def observe(
     features: Optional[torch.Tensor] = None
 ) -> Dict[str, Any]:
 ```
--   **Returns:** A dictionary of metrics, including `emotion` and the crucial `learning_multiplier`.
+-   **Returns:** A dictionary of metrics, including `emotion`, `surprise`, `uncertainty`, `confusion`, and thought trace information for System 2 reasoning.
 
 ### 2.2. `AdapterBank`
 
@@ -226,6 +226,9 @@ class AdaptiveFrameworkConfig:
     compile_model: bool = True
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     gradient_clip_norm: float = 1.0
+    # [V8.0] Optimization
+    use_lookahead: bool = True
+    use_gradient_centralization: bool = True
     
     # ... and other parameters. See source for full list.
 ```

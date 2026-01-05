@@ -107,9 +107,65 @@ class OrthogonalProjector:
         return grad
 
 
+class HolographicAssociativeMemory:
+    """
+    V8.0 Holographic Memory: Clustered Retrieval for Fast, Relevant Recall.
+    Uses K-Means clustering on feature embeddings to organize memories.
+    """
+    def __init__(self, feature_dim=256, num_clusters=10, capacity=10000):
+        self.feature_dim = feature_dim
+        self.num_clusters = num_clusters
+        self.capacity = capacity
+        self.centroids = torch.randn(num_clusters, feature_dim) # Random init
+        self.clusters = {i: deque(maxlen=capacity // num_clusters) for i in range(num_clusters)}
+        self.initialized = False
+        
+    def add(self, snapshot, feature_vector: torch.Tensor):
+        """Add memory to the closest cluster."""
+        if feature_vector is None: return
+        
+        # Normalize
+        fv = feature_vector.detach().cpu()
+        if fv.dim() > 1: fv = fv.mean(dim=0)
+        
+        if not self.initialized:
+            self.centroids = self.centroids.to(fv.device)
+            self.initialized = True
+            
+        # Find nearest cluster
+        dists = torch.norm(self.centroids - fv, dim=1)
+        cluster_idx = torch.argmin(dists).item()
+        
+        # Update centroid (Moving Average)
+        self.centroids[cluster_idx] = 0.99 * self.centroids[cluster_idx] + 0.01 * fv
+        
+        # Store
+        self.clusters[cluster_idx].append(snapshot)
+        
+    def retrieve(self, query_vector: torch.Tensor, k: int = 32) -> List[Any]:
+        """Retrieve memories from the most relevant clusters."""
+        if query_vector is None or not self.initialized: return []
+        
+        qv = query_vector.detach().cpu()
+        if qv.dim() > 1: qv = qv.mean(dim=0)
+        
+        # Find top-2 closest clusters
+        dists = torch.norm(self.centroids - qv, dim=1)
+        _, top_clusters = torch.topk(dists, k=min(2, self.num_clusters), largest=False)
+        
+        candidates = []
+        for idx in top_clusters:
+            candidates.extend(list(self.clusters[idx.item()]))
+            
+        # Random sample from candidates if too many
+        if len(candidates) > k:
+            return random.sample(candidates, k)
+        return candidates
+
+
 class UnifiedMemoryHandler:
     """
-    Hybrid SI + EWC + OGD handler.
+    Hybrid SI + EWC + OGD + Holographic handler.
     """
     
     def __init__(self, 
@@ -119,7 +175,8 @@ class UnifiedMemoryHandler:
                  si_xi: float = 1e-3,
                  ewc_lambda: float = 0.4,
                  consolidation_criterion: str = 'hybrid',
-                 use_ogd: bool = False):
+                 use_ogd: bool = False,
+                 use_holographic: bool = True):
         
         self.model = model
         self.method = method
@@ -128,10 +185,14 @@ class UnifiedMemoryHandler:
         self.ewc_lambda = ewc_lambda
         self.consolidation_criterion = consolidation_criterion
         self.use_ogd = use_ogd
+        self.use_holographic = use_holographic
         self.logger = logging.getLogger('UnifiedMemoryHandler')
         
         # OGD Projector
         self.projector = OrthogonalProjector(next(model.parameters()).device) if use_ogd else None
+        
+        # Holographic Memory (V8.0)
+        self.holographic_memory = HolographicAssociativeMemory() if use_holographic else None
         
         # SI state (per-parameter accumulators)
         self.omega_accum = {
@@ -292,9 +353,10 @@ class UnifiedMemoryHandler:
             # FAST APPROXIMATION (Online EWC)
             is_classification = output.dim() > batch_targets.dim() and batch_targets.dim() == 1 and output.size(0) == batch_targets.size(0)
             if is_classification:
+                if batch_targets.dtype != torch.long: batch_targets = batch_targets.long()
                 loss = F.cross_entropy(output, batch_targets)
             else:
-                loss = F.mse_loss(output, batch_targets)
+                loss = F.mse_loss(output.float(), batch_targets.float())
             
             loss.backward()
             

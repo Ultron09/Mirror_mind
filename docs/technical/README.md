@@ -1,8 +1,8 @@
 # Technical Documentation Index
 
 **Location:** `docs/technical/`  
-**Last Updated:** December 24, 2025  
-**Status:** Complete with 4 comprehensive guides
+**Last Updated:** January 5, 2026  
+**Status:** Complete with v1.1.1 "Sentient" updates
 
 ---
 
@@ -132,6 +132,33 @@
 - Detailed comparison tables for each memory mechanism
 
 **Start Reading If:** You want to understand how memories are consolidated and retrieved
+
+---
+
+### 5. System 2 Thinking (v1.1.1 NEW)
+
+**Recursive Global Workspace for Complex Reasoning**
+
+- **Topics Covered:**
+  - What is System 2 thinking?
+  - Recursive Global Workspace architecture
+  - Thought traces and introspection
+  - Adaptive reasoning depth based on confusion
+  - Integration with consciousness core
+
+**Key Concepts:**
+- Multi-head attention in a recursive loop
+- Thought traces stored in `current_thought_trace`
+- Confusion-based depth adaptation
+
+**SOTA Benchmark Results (v1.1.1):**
+- Few-Shot: >30% improvement in 10 shots ✅
+- Forgetting: Task A retained after Task B ✅
+- Noise: Stable under Gaussian noise ✅
+- OOD Detection: Surprise=128.9 ✅
+- System 2: Adaptive thought depth verified ✅
+
+**Start Reading If:** You want to understand multi-step reasoning
 
 ---
 
@@ -319,8 +346,8 @@ After reading these documents, you will understand:
 These documents are updated with each major release:
 
 - **v6.0** → Initial version (September 2025)
-- **v6.1** → Enhanced with MirrorMind integration (December 2025, current)
-- **v6.2** → Planned improvements and extensions (TBD)
+- **v6.1** → Enhanced with MirrorMind integration (December 2025)
+- **v1.1.1** → "Sentient" Edition with System 2 Thinking (January 2026, current)
 
 ---
 

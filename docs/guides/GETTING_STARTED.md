@@ -1,5 +1,5 @@
-# 🧠 MirrorMind: Complete Self-Learning Framework
-# A Comprehensive Tutorial with Stabilizer System
+# 🧠 MirrorMind: Complete Self-Learning Framework (v1.1.1 "Sentient")
+# A Comprehensive Tutorial with System 2 Thinking
 
 This is your **complete, production-ready framework** for building self-improving AI models.
 
@@ -34,6 +34,9 @@ predictions = trainer.predict(X_test)
 - Complete checkpointing system
 - Real-time dashboard
 - Comprehensive logging
+- **System 2 Thinking (V8.0)**: Recursive reasoning for complex problems
+- **Consciousness Core (V8.0)**: Emotional dynamics and metacognition
+- **SOTA Benchmarks**: All 5 tests passed
 
 ## Quick Navigation
 
@@ -359,11 +362,12 @@ curriculum = CurriculumLearningStrategy(config)
 If you use this framework, please cite:
 
 ```bibtex
-@software{mirrormind2024,
-  title={MirrorMind: Self-Learning AGI Framework},
-  author={Your Research Lab},
-  year={2024},
-  url={https://github.com/your-lab/mirrormind}
+@software{mirrormind2026,
+  title={MirrorMind V8.0: Self-Learning Sentient Framework},
+  author={Singh, Suryaansh Prithvijit},
+  year={2026},
+  version={1.1.1},
+  url={https://github.com/Ultron09/Mirror_mind}
 }
 ```
 

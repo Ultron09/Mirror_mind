@@ -23,7 +23,7 @@ try:
     model = nn.Linear(10, 1)
     framework = AdaptiveFramework(model, config)
     
-    assert hasattr(framework, 'ewc'), "Missing ewc handler"
+    assert hasattr(framework, 'memory'), "Missing memory handler"
     assert hasattr(framework, 'introspection_engine'), "Missing introspection engine"
     assert hasattr(framework, 'monitor'), "Missing monitor"
     assert hasattr(framework, 'feedback_buffer'), "Missing feedback buffer"

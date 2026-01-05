@@ -17,8 +17,8 @@ framework = AdaptiveFramework(model, config)
 
 # Check integrations
 checks = {
-    'EWC (Memory)': hasattr(framework, 'ewc') and hasattr(framework.ewc, 'consolidate'),
-    'SI Accumulation': hasattr(framework, 'ewc') and hasattr(framework.ewc, 'accumulate_path'),
+    'EWC (Memory)': hasattr(framework, 'memory') and hasattr(framework.memory, 'consolidate'),
+    'SI Accumulation': hasattr(framework, 'memory') and hasattr(framework.memory, 'accumulate_path'),
     'Introspection': hasattr(framework, 'introspection_engine'),
     'Consciousness': hasattr(framework, 'consciousness'),
     'Consolidation Scheduler': hasattr(framework, 'consolidation_scheduler'),

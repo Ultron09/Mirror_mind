@@ -1,17 +1,24 @@
 """
-Enhanced Consciousness Module: Human-Like Self-Awareness (Universal V7.2)
-=========================================================================
+Enhanced Consciousness Module: System 2 Thinking (Universal v1.1.1 "Sentient")
+=============================================================================
 
 This module implements a sophisticated consciousness and self-awareness system
 that mimics human-like introspection, emotional states, meta-cognition, and 
 adaptive learning strategies.
 
-PATCH NOTES (V7.2):
-1. ACCURACY: Removed random sampling in memory retrieval (Scan all 5k items).
+V8.0 "SENTIENT" FEATURES:
+1. RECURSIVE GLOBAL WORKSPACE: Multi-step "System 2" thinking loops.
+2. THOUGHT TRACES: Introspectable reasoning chains.
+3. ADAPTIVE AWARENESS: Dynamic attention based on confusion/certainty.
+4. EMOTIONAL DYNAMICS: Confidence, curiosity, frustration states.
+5. CONFUSION METRIC: Exposed in observe() for external use.
+
+PATCH NOTES (V7.2 - Inherited):
+1. ACCURACY: Removed random sampling in memory retrieval.
 2. STABILITY: Added robust NaN guards in EmotionalSystem.
-3. TYPE SAFETY: Fixed Enum/String serialization in JSON outputs.
-4. OPTIMIZATION: Added Content-Aware Retrieval using feature similarity.
-5. SELF-MODEL: Added Fingerprint-Based Task Prediction (Exp 3).
+3. TYPE SAFETY: Fixed Enum/String serialization.
+4. OPTIMIZATION: Content-Aware Retrieval using feature similarity.
+5. SELF-MODEL: Fingerprint-Based Task Prediction.
 """
 
 import torch
@@ -442,47 +449,81 @@ class AdaptiveAwareness:
             self.consciousness_level = 0.5 + (task_complexity - 0.5) * 0.5
 
 
-class GlobalWorkspace(nn.Module):
+class ThoughtProcess(nn.Module):
     """
-    The 'Theater of Consciousness'.
-    A shared working memory that integrates and broadcasts information.
+    Represents a single step of "thinking" in the Global Workspace.
     """
-    def __init__(self, dim=256, num_slots=8, num_heads=4):
+    def __init__(self, dim=256, num_heads=4, dropout=0.1):
+        super().__init__()
+        self.self_attn = nn.MultiheadAttention(dim, num_heads, dropout=dropout, batch_first=True)
+        self.norm1 = nn.LayerNorm(dim)
+        self.ff = nn.Sequential(
+            nn.Linear(dim, dim * 4),
+            nn.GELU(),
+            nn.Linear(dim * 4, dim),
+            nn.Dropout(dropout)
+        )
+        self.norm2 = nn.LayerNorm(dim)
+        
+    def forward(self, x):
+        # x: [B, Slots, D]
+        attn_out, _ = self.self_attn(x, x, x)
+        x = self.norm1(x + attn_out)
+        ff_out = self.ff(x)
+        x = self.norm2(x + ff_out)
+        return x
+
+class RecursiveGlobalWorkspace(nn.Module):
+    """
+    V3.0 Global Workspace with Recursive "System 2" Capability.
+    """
+    def __init__(self, dim=256, num_slots=8, num_heads=4, max_thinking_steps=5):
         super().__init__()
         self.dim = dim
+        self.num_slots = num_slots
+        self.max_thinking_steps = max_thinking_steps
+        
+        # The "Working Memory" Slots
         self.slots = nn.Parameter(torch.randn(1, num_slots, dim))
-        self.attention = nn.MultiheadAttention(dim, num_heads, batch_first=True)
-        self.norm = nn.LayerNorm(dim)
-        self.memory_gate = nn.GRUCell(dim, dim) # Recurrence
         
-    def forward(self, inputs: torch.Tensor, prev_slots: Optional[torch.Tensor] = None) -> torch.Tensor:
+        # Input Projection (Sensory -> Workspace)
+        self.input_gate = nn.MultiheadAttention(dim, num_heads, batch_first=True)
+        self.input_norm = nn.LayerNorm(dim)
+        
+        # The "Thinking" Core
+        self.thought_process = ThoughtProcess(dim, num_heads)
+        
+        # Broadcast (Workspace -> Output/Action)
+        self.broadcast_gate = nn.Linear(dim, dim)
+        
+    def forward(self, inputs: torch.Tensor, thinking_steps: int = 1) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """
-        Process inputs through the workspace.
-        inputs: [B, N, D] or [B, D]
+        inputs: [B, N, D] (Sensory information)
+        thinking_steps: How many recursive loops to run.
         """
-        if inputs.dim() == 2: inputs = inputs.unsqueeze(1)
         B = inputs.size(0)
+        if inputs.dim() == 2: inputs = inputs.unsqueeze(1)
         
-        # Initialize or use previous state
-        if prev_slots is None:
-            slots = self.slots.expand(B, -1, -1) # [B, S, D]
-        else:
-            slots = prev_slots
+        # 1. Initialize Slots
+        slots = self.slots.expand(B, -1, -1) # [B, S, D]
+        
+        # 2. Read Inputs (Competition)
+        # Slots query the Inputs
+        attn_out, _ = self.input_gate(slots, inputs, inputs)
+        slots = self.input_norm(slots + attn_out)
+        
+        # 3. Recursive Thinking (System 2)
+        thought_trace = []
+        for _ in range(thinking_steps):
+            slots = self.thought_process(slots)
+            thought_trace.append(slots.detach())
             
-        # 1. Competition / Read (Slots attend to Inputs)
-        # Query: Slots, Key/Value: Inputs
-        # "What is important right now?"
-        attn_out, _ = self.attention(slots, inputs, inputs)
-        slots = self.norm(slots + attn_out)
+        # 4. Broadcast
+        # Aggregate slots to form a coherent "Global State"
+        global_state = slots.mean(dim=1) # [B, D]
+        broadcast = self.broadcast_gate(global_state)
         
-        # 2. Recurrence (Memory Update)
-        # Update each slot independently using GRU
-        # Reshape to [B*S, D] for GRUCell
-        slots_flat = slots.view(-1, self.dim)
-        slots_new = self.memory_gate(slots_flat, slots_flat) # Simple self-recurrence
-        slots = slots_new.view(B, -1, self.dim)
-        
-        return slots
+        return broadcast, thought_trace
 
 
 class EnhancedConsciousnessCore:
@@ -493,6 +534,7 @@ class EnhancedConsciousnessCore:
     
     def __init__(self,
                  feature_dim: int = 256,
+                 num_heads: int = 4,
                  awareness_buffer_size: int = 5000,
                  novelty_threshold: float = 2.0,
                  model: Optional[nn.Module] = None):
@@ -507,8 +549,10 @@ class EnhancedConsciousnessCore:
         self.adaptive_awareness = AdaptiveAwareness()
         
         # Global Workspace (The "Mind's Eye")
-        self.global_workspace = GlobalWorkspace(dim=feature_dim)
-        self.current_thought = None # Current state of workspace
+        print(f"DEBUG: Initializing Global Workspace with dim={feature_dim}, num_heads={num_heads}", flush=True)
+        self.global_workspace = RecursiveGlobalWorkspace(dim=feature_dim, num_heads=num_heads)
+        self.current_thought_trace = [] # Trace of thought steps
+        self.confusion_level = 0.0
         
         # Basic tracking
         self.feature_dim = feature_dim
@@ -546,7 +590,10 @@ class EnhancedConsciousnessCore:
              
         else:
              # Regression
-             error = F.mse_loss(y_pred_flat, y_true.view_as(y_pred_flat), reduction='none').mean(dim=1)
+             # Ensure float for MSE
+             y_pred_f = y_pred_flat.float()
+             y_true_f = y_true.view_as(y_pred_flat).float()
+             error = F.mse_loss(y_pred_f, y_true_f, reduction='none').mean(dim=1)
              confidence = 1.0 / (1.0 + error.mean().item())
              uncertainty = features.var(dim=0).mean().item() if features is not None else 0.5
 
@@ -564,13 +611,26 @@ class EnhancedConsciousnessCore:
             # Update mean feature vector
             self.mean_feature_vector = 0.99 * self.mean_feature_vector + 0.01 * features.mean(dim=0)
 
-            # [V7.3] Process Thought (Global Workspace)
+            # [V8.0] Process Thought (Recursive Global Workspace)
             # We treat the features as inputs to the workspace
             try:
-                # Ensure features match workspace dim. If not, project?
-                # For now assuming feature_dim matches.
+                # Determine Thinking Steps based on Surprise/Uncertainty
+                # High uncertainty -> More thinking (System 2)
+                base_steps = 1
+                if uncertainty > 0.8 or self.error_mean > 1.0:
+                    thinking_steps = 3 # Deep thought
+                    self.confusion_level = 1.0
+                elif uncertainty > 0.5:
+                    thinking_steps = 2
+                    self.confusion_level = 0.5
+                else:
+                    thinking_steps = 1 # Reflex
+                    self.confusion_level = 0.0
+
+                # Ensure features match workspace dim.
                 if features.size(-1) == self.feature_dim:
-                    self.current_thought = self.global_workspace(features, self.current_thought)
+                    broadcast_state, trace = self.global_workspace(features, thinking_steps=thinking_steps)
+                    self.current_thought_trace = trace
             except Exception:
                 pass # Dimension mismatch or other error, skip thought
 
@@ -613,6 +673,7 @@ class EnhancedConsciousnessCore:
             'novelty': novelty,
             'emotion': self.current_emotional_state.value,
             'emotion_scores': self.current_emotion_scores,
+            'confusion': self.confusion_level,
             'importance': 1.0 + surprise + (1-confidence),
             'learning_rate_multiplier': self.emotional_system.get_learning_multiplier(self.current_emotional_state)
         }

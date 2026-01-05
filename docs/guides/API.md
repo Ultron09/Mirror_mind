@@ -1,5 +1,5 @@
 
-# API Reference
+# API Reference (v1.1.1 "Sentient" Edition)
 
 ## Overview
 
@@ -7,7 +7,8 @@
 
 1. **AdaptiveFramework** : Core learner with introspection and online adaptation
 2. **MetaController** : Advanced adaptation orchestration (learning to learn)
-3. **ProductionAdapter** : Simplified interface for production deployment
+3. **ConsciousnessCore** : System 2 Thinking with recursive global workspace
+4. **ProductionAdapter** : Simplified interface for production deployment
 
 ## AdaptiveFramework
 
@@ -450,11 +451,12 @@ for epoch in range(10):
 If you use airbornehrs in your research or applications:
 
 ```
-@software{airbornehrs2025,
-  title = {airbornehrs: Production-Ready Adaptive Meta-Learning Framework},
-  author = {AirborneHRS Contributors},
-  year = {2025},
-  url = {[https://github.com/Ultron09/Mirror_mind](https://github.com/Ultron09/Mirror_mind)}
+@software{airbornehrs2026,
+  title = {airbornehrs v1.1.1 Sentient: Production-Ready Adaptive Meta-Learning Framework},
+  author = {Singh, Suryaansh Prithvijit},
+  year = {2026},
+  version = {1.1.1},
+  url = {https://github.com/Ultron09/Mirror_mind}
 }
 ```
 

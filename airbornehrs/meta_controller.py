@@ -383,6 +383,7 @@ class MetaController:
         self.curriculum = CurriculumStrategy(config)
         self.reptile = ReptileOptimizer(framework.model, config)
         
+        self.current_mode = 'NORMAL'
         self.step_count = 0
         
     def adapt(self,
