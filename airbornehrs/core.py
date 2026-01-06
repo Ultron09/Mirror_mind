@@ -30,6 +30,7 @@ from .meta_controller import MetaController, MetaControllerConfig
 from .consciousness_v2 import ConsciousnessCore
 from .adapters import AdapterBank
 from .moe import SparseMoE
+from .perception import PerceptionGateway
 
 # OPTIMIZATION: Use Tensor Cores on Ampere+ GPUs
 torch.set_float32_matmul_precision('high')
@@ -132,6 +133,12 @@ class AdaptiveFrameworkConfig:
     use_learned_optimizer: bool = True
     learned_optimizer_hidden_dim: int = 32
 
+    # --- V8.0: PERCEPTION INTERFACE ---
+    enable_perception: bool = False
+    vision_dim: int = 3 # Channels
+    audio_dim: int = 80 # Mel bins
+    text_dim: int = 0   # Optional projection
+
     @classmethod
     def production(cls):
         return cls(
@@ -161,8 +168,14 @@ class PerformanceSnapshot:
     episode: int
     
     def to_device(self, device):
-        self.input_args = tuple(arg.to(device) for arg in self.input_args if isinstance(arg, torch.Tensor))
-        self.input_kwargs = {k: v.to(device) for k, v in self.input_kwargs.items() if isinstance(v, torch.Tensor)}
+        def _to_device(x):
+            if isinstance(x, torch.Tensor): return x.to(device)
+            if isinstance(x, dict): return {k: _to_device(v) for k, v in x.items()}
+            if isinstance(x, list): return [_to_device(v) for v in x]
+            return x
+
+        self.input_args = tuple(_to_device(arg) for arg in self.input_args)
+        self.input_kwargs = {k: _to_device(v) for k, v in self.input_kwargs.items()}
         self.output = self.output.to(device)
         self.target = self.target.to(device)
         return self
@@ -180,9 +193,15 @@ class FeedbackBuffer:
         
     def add(self, input_args: tuple, input_kwargs: dict, output: torch.Tensor, target: torch.Tensor, reward: float, loss: float):
         # Move to CPU immediately to save VRAM
+        def to_cpu(x):
+            if isinstance(x, torch.Tensor): return x.detach().cpu()
+            if isinstance(x, dict): return {k: to_cpu(v) for k, v in x.items()}
+            if isinstance(x, list): return [to_cpu(v) for v in x]
+            return x
+
         snapshot = PerformanceSnapshot(
-            input_args=tuple(arg.detach().cpu() for arg in input_args if isinstance(arg, torch.Tensor)),
-            input_kwargs={k: v.detach().cpu() for k, v in input_kwargs.items() if isinstance(v, torch.Tensor)},
+            input_args=tuple(to_cpu(arg) for arg in input_args),
+            input_kwargs={k: to_cpu(v) for k, v in input_kwargs.items()},
             output=output.detach().cpu(),
             target=target.detach().cpu(),
             reward=reward,
@@ -329,10 +348,16 @@ class AdaptiveFramework(nn.Module):
         # 1. The "Body" (Base Model)
         self.model = user_model.to(self.device)
         
+        # [V8.0] Perception Gateway
+        self.perception = None
+        if self.config.enable_perception:
+            self.perception = PerceptionGateway(self.config)
+            self.logger.info("Perception Interface Enabled")
+        
         # [V7.1] MoE Transformation
         if getattr(config, 'use_moe', False):
             moe_input_dim = config.input_dim if config.input_dim > 0 else config.model_dim
-            self.logger.info(f"🧠 Transforming Cortex into Sparse MoE ({config.num_experts} Experts, Top-{config.top_k_experts})...")
+            self.logger.info("Transforming Cortex into Sparse MoE...")
             self.model = SparseMoE(
                 base_model=self.model,
                 input_dim=moe_input_dim,
@@ -340,17 +365,6 @@ class AdaptiveFramework(nn.Module):
                 top_k=config.top_k_experts
             ).to(self.device)
             self.logger.info("   ✅ Transformation Complete. The Mind is now distributed.")
-
-        # 2. Initialize Adapters & Hooks (CRITICAL: Must be before optimizer)
-        self._init_adapters_and_hooks()
-        
-        # 3. The "Mind" (RL Policy)
-        self.introspection_engine = IntrospectionEngine(
-            input_dim=config.telemetry_dim
-        ).to(self.device)
-        
-        # 4. The "Cortex" (Weight Editor)
-        self.monitor = PerformanceMonitor(self.model, config, self.device)
         
         # 5. Memory System (Unified Handler V7.0)
         # We explicitly use UnifiedMemoryHandler, removing all EWC legacy code.
@@ -392,6 +406,15 @@ class AdaptiveFramework(nn.Module):
             self.logger.info("[CONSCIOUSNESS] Self-Awareness Module Active")
         else:
             self.consciousness = None
+        
+        # [V8.0] Introspection Engine (System 2 Policy)
+        self.introspection_engine = IntrospectionEngine(
+            input_dim=config.telemetry_dim, 
+            hidden_dim=config.model_dim // 4
+        ).to(self.device)
+
+        # 4. Initialize Adapters & Hooks (Must run BEFORE optimizer creation)
+        self._init_adapters_and_hooks()
         
         # 9. Optimizers
         self.optimizer = AdamW(self.model.parameters(), lr=config.learning_rate)
@@ -436,7 +459,7 @@ class AdaptiveFramework(nn.Module):
         if config.compile_model and hasattr(torch, 'compile'):
             try:
                 if platform.system() != 'Windows': # Compilation often fails on Windows
-                    self.logger.info("🚀 Compiling model for speed...")
+                    self.logger.info("Compiling model for speed...")
                     self.model = torch.compile(self.model)
             except Exception as e:
                 self.logger.warning(f"Compilation failed: {e}")
@@ -449,7 +472,7 @@ class AdaptiveFramework(nn.Module):
             self.lookahead_step = 0
             self.slow_weights = {n: p.data.clone().detach() for n, p in self.model.named_parameters() if p.requires_grad}
 
-        self.logger.info("🚀 AirborneHRS Framework Initialized (V8.0 Sentient Edition)")
+        self.logger.info("AirborneHRS Framework Initialized (V8.0 Sentient Edition)")
 
     def _setup_logging(self):
         logger = logging.getLogger('AdaptiveFramework')
@@ -531,13 +554,22 @@ class AdaptiveFramework(nn.Module):
         return hook
 
     def forward(self, *args, **kwargs):
-        output = self.model(*args, **kwargs)
+        # [V8.0] Perception Gateway Integration
+        fused_latent = None
+        if self.perception and len(args) == 1 and isinstance(args[0], dict):
+            # Dictionary input (Multi-Modal)
+            fused_latent = self.perception(args[0])
+            if fused_latent is not None:
+                # Pass fused latent to base model
+                output = self.model(fused_latent)
+            else:
+                output = self.model(*args, **kwargs)
+        else:
+            output = self.model(*args, **kwargs)
         
         # [V7.1] MoE Handling
-        # If model is MoE, it returns (output, indices)
         moe_indices = None
         if isinstance(output, tuple) and len(output) == 2 and isinstance(output[1], torch.Tensor):
-             # Check if second element looks like indices [B, k]
              if output[1].dtype == torch.long:
                  output, moe_indices = output
         
@@ -557,6 +589,9 @@ class AdaptiveFramework(nn.Module):
         except Exception:
             self.meta_log_probs.clear()
 
+        # [V8.0] Store fused latent for consciousness
+        self._last_fused_latent = fused_latent
+
         return output, log_var, affine_modifiers
 
     def get_emotional_parameters(self, emotion: str) -> Tuple[float, bool, float]:
@@ -567,9 +602,9 @@ class AdaptiveFramework(nn.Module):
             "anxious": (0.9, True, 1.2),
             "curious": (1.0, True, 1.1),
             "bored": (0.7, True, 0.8),
-            "frustrated": (1.1, True, 1.5), # Keep memory penalty
+            "frustrated": (1.1, True, 1.5), 
             "satisfied": (1.0, True, 1.0),
-            "overwhelmed": (0.5, True, 0.6), # Keep memory penalty
+            "overwhelmed": (0.5, True, 0.6),
         }
         return params.get(emotion, (1.0, True, 1.0))
 
@@ -603,19 +638,13 @@ class AdaptiveFramework(nn.Module):
         self.optimizer.zero_grad()
         
         # 1. Forward Pass
-        # Handle multiple inputs
-        if len(model_inputs) == 1 and isinstance(model_inputs[0], list):
-             # Unpack list if passed as single arg
-             inputs = model_inputs[0]
-             outputs = self.model(*inputs)
-        else:
-             inputs = model_inputs
-             outputs = self.model(*inputs)
+        # Use self.forward() to handle multi-modal dictionary inputs
+        outputs, log_var, affine_modifiers = self.forward(*model_inputs)
             
         # Extract logits/features
         if hasattr(outputs, 'logits'):
             logits = outputs.logits
-            features = outputs.hidden_states[-1] if hasattr(outputs, 'hidden_states') else None
+            features = outputs.hidden_states[-1] if getattr(outputs, 'hidden_states', None) is not None else None
         elif isinstance(outputs, tuple):
             logits = outputs[0]
             features = outputs[1] if len(outputs) > 1 else None
@@ -651,8 +680,11 @@ class AdaptiveFramework(nn.Module):
             # Use features if available, else inputs
             if features is not None:
                 cons_features = features.detach()
-            elif len(inputs) > 0 and isinstance(inputs[0], torch.Tensor):
-                cons_features = inputs[0].detach().float()
+            elif hasattr(self, '_last_fused_latent') and self._last_fused_latent is not None:
+                # [V8.0] Use fused latent state for consciousness
+                cons_features = self._last_fused_latent.detach()
+            elif len(model_inputs) > 0 and isinstance(model_inputs[0], torch.Tensor):
+                cons_features = model_inputs[0].detach().float()
             else:
                 cons_features = None
             
@@ -679,7 +711,7 @@ class AdaptiveFramework(nn.Module):
             # Add to buffers
             if record_stats:
                 snapshot = type('Snapshot', (), {})()
-                snapshot.input_args = inputs
+                snapshot.input_args = model_inputs
                 snapshot.target = target_data
                 
                 # Holographic
