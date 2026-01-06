@@ -1,0 +1,66 @@
+{
+  "timestamp": "2026-01-05T19:52:47.638295",
+  "version": "1.1.1",
+  "system": {
+    "System": "Windows",
+    "Platform": "Windows-11-10.0.26200-SP0",
+    "Processor": "Intel64 Family 6 Model 165 Stepping 2, GenuineIntel",
+    "Architecture": "AMD64",
+    "Python": "3.13.1",
+    "CPU Cores": "4 Physical / 8 Logical",
+    "CPU Usage": "17.9%",
+    "RAM": "15.8 GB (83.8% used)",
+    "PyTorch": "2.9.1+cpu",
+    "Compute": "CPU Only",
+    "GPU": "None",
+    "VRAM": "N/A"
+  },
+  "gpu_health": {
+    "status": "cpu_mode",
+    "details": {}
+  },
+  "modules": [
+    {
+      "name": "Core Framework",
+      "path": "airbornehrs.core",
+      "status": "ok",
+      "message": "\u2713 OK"
+    },
+    {
+      "name": "Memory System",
+      "path": "airbornehrs.memory",
+      "status": "ok",
+      "message": "\u2713 OK"
+    },
+    {
+      "name": "Consciousness",
+      "path": "airbornehrs.consciousness_v2",
+      "status": "ok",
+      "message": "\u2713 OK"
+    },
+    {
+      "name": "Meta Controller",
+      "path": "airbornehrs.meta_controller",
+      "status": "ok",
+      "message": "\u2713 OK"
+    },
+    {
+      "name": "Adapters",
+      "path": "airbornehrs.adapters",
+      "status": "ok",
+      "message": "\u2713 OK"
+    },
+    {
+      "name": "Presets",
+      "path": "airbornehrs.presets",
+      "status": "ok",
+      "message": "\u2713 OK"
+    },
+    {
+      "name": "Production",
+      "path": "airbornehrs.production",
+      "status": "ok",
+      "message": "\u2713 OK"
+    }
+  ]
+}

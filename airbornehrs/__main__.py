@@ -317,7 +317,7 @@ class InteractiveDemo:
         console.print(table)
 
     @staticmethod
-    def run_quick_demo(model=None):
+    def run_quick_demo(model=None, input_shape=None):
         if not HAS_RICH:
             print("\n[Demo requires Rich UI library]")
             return
@@ -326,10 +326,10 @@ class InteractiveDemo:
 
         console.print(
             Panel(
-                "[bold cyan]🧠 MirrorMind — Interactive Cognitive Experiment[/bold cyan]\n\n"
-                "You are inside the learning loop.\n"
-                "Each step YOU decide what the world looks like.\n"
-                "The system adapts — and exposes its mind when stressed.\n\n"
+                "[bold cyan]🧠 MirrorMind — Interactive Cognitive Experiment[/bold cyan]\\n\\n"
+                "You are inside the learning loop.\\n"
+                "Each step YOU decide what the world looks like.\\n"
+                "The system adapts — and exposes its mind when stressed.\\n\\n"
                 "[bold]Type 'exit' to finish and receive a report.[/bold]",
                 title="🎮 Human-in-the-Loop Mode",
                 border_style="cyan"
@@ -366,10 +366,30 @@ class InteractiveDemo:
                 console.print("[green]✓ Using Custom User Model[/green]")
 
             framework = AdaptiveFramework(model, config)
+            device = framework.device
 
-            console.print("[green]✓ Cognitive core online[/green]")
+            # Determine output dimension dynamically
+            with torch.no_grad():
+                # Default shape if none provided
+                if input_shape is None:
+                    check_shape = (4, 10)
+                else:
+                    check_shape = (4, *input_shape)
+                
+                dummy_input = torch.zeros(*check_shape).to(device)
+                dummy_output = model(dummy_input)
+                
+                # Handle tuple output (logits, features)
+                if isinstance(dummy_output, tuple):
+                    dummy_output = dummy_output[0]
+                elif hasattr(dummy_output, 'logits'):
+                    dummy_output = dummy_output.logits
+                
+                output_dim = dummy_output.shape[1] if len(dummy_output.shape) > 1 else 1
+
+            console.print(f"[green]✓ Cognitive core online (Output Dim: {output_dim})[/green]")
             console.print("[green]✓ Consciousness active[/green]")
-            console.print("[green]✓ Reflex thresholds lowered[/green]\n")
+            console.print("[green]✓ Reflex thresholds lowered[/green]\\n")
 
             while True:
                 console.rule(f"[bold cyan]STEP {step}[/bold cyan]")
@@ -382,7 +402,7 @@ class InteractiveDemo:
 
                 # -------- EXIT --------
                 if choice == "exit":
-                    console.print("\n[bold green]👋 User exited cognitive experiment[/bold green]\n")
+                    console.print("\\n[bold green]👋 User exited cognitive experiment[/bold green]\\n")
                     break
 
                 # -------- DREAM --------
@@ -406,21 +426,27 @@ class InteractiveDemo:
                     continue
 
                 # -------- ENVIRONMENTS --------
+                # Determine input shape
+                if input_shape is None:
+                    current_shape = (4, 10) # Default
+                else:
+                    current_shape = (4, *input_shape)
+
                 if choice == "normal":
-                    x = torch.randn(4, 10)
-                    y = torch.randn(4, 1)
+                    x = torch.randn(*current_shape).to(device)
+                    y = torch.randn(4, output_dim).to(device)
                     regime = "STABLE ENVIRONMENT"
                 elif choice == "shift":
-                    x = torch.randn(4, 10) * 5
-                    y = torch.randn(4, 1)
+                    x = (torch.randn(*current_shape) * 5).to(device)
+                    y = torch.randn(4, output_dim).to(device)
                     regime = "DOMAIN SHIFT"
                 elif choice == "chaos":
-                    x = torch.randn(4, 10) * torch.randn(1).abs()
-                    y = torch.randn(4, 1) * 3
+                    x = (torch.randn(*current_shape) * torch.randn(1).abs()).to(device)
+                    y = (torch.randn(4, output_dim) * 3).to(device)
                     regime = "CHAOTIC INPUT"
                 elif choice == "freeze":
-                    x = torch.zeros(4, 10)
-                    y = torch.zeros(4, 1)
+                    x = torch.zeros(*current_shape).to(device)
+                    y = torch.zeros(4, output_dim).to(device)
                     regime = "SIGNAL FREEZE"
 
                 console.print(f"[dim]Environment:[/dim] [bold]{regime}[/bold]")
@@ -471,11 +497,11 @@ class InteractiveDemo:
             InteractiveDemo.render_final_report(console, session_report)
 
         except KeyboardInterrupt:
-            console.print("\n[bold yellow]Demo interrupted by user[/bold yellow]")
+            console.print("\\n[bold yellow]Demo interrupted by user[/bold yellow]")
             InteractiveDemo.render_final_report(console, session_report)
 
         except Exception as e:
-            console.print(f"\n[bold red]Demo error:[/bold red] {e}")
+            console.print(f"\\n[bold red]Demo error:[/bold red] {e}")
             InteractiveDemo.render_final_report(console, session_report)
 
     @staticmethod
@@ -519,7 +545,7 @@ Importance reflects what the system chose to remember.
             )
         )
 
-        console.print("\n[bold green]✓ End of cognitive report[/bold green]\n")
+        console.print("\\n[bold green]✓ End of cognitive report[/bold green]\\n")
 
 
 # --- RICH UI (ULTRA-ADVANCED) ---
@@ -531,9 +557,9 @@ def create_header() -> Panel:
     
     content = Text()
     content.append_text(logo)
-    content.append("\n")
+    content.append("\\n")
     content.append_text(subtitle)
-    content.append("\n")
+    content.append("\\n")
     content.append_text(author)
     
     return Panel(
@@ -596,17 +622,17 @@ def create_health_panel() -> Panel:
     health = SystemMonitor.check_gpu_health()
     
     if health["status"] == "optimal":
-        content = "[bold green]✓ GPU ONLINE[/bold green]\n\n"
+        content = "[bold green]✓ GPU ONLINE[/bold green]\\n\\n"
         for key, val in health["details"].items():
-            content += f"[cyan]{key}:[/cyan] {val}\n"
+            content += f"[cyan]{key}:[/cyan] {val}\\n"
         style = "green"
     elif health["status"] == "cpu_mode":
-        content = "[bold yellow]⚠ CPU MODE[/bold yellow]\n\n"
-        content += "No GPU detected. Running on CPU.\n"
+        content = "[bold yellow]⚠ CPU MODE[/bold yellow]\\n\\n"
+        content += "No GPU detected. Running on CPU.\\n"
         content += "Performance may be limited."
         style = "yellow"
     else:
-        content = "[bold red]✗ ERROR[/bold red]\n\n"
+        content = "[bold red]✗ ERROR[/bold red]\\n\\n"
         content += f"Status: {health.get('error', 'Unknown')}"
         style = "red"
     
@@ -665,14 +691,14 @@ def run_interactive_dashboard():
     console.print(layout)
     
     # Footer with options
-    console.print("\n" + "─" * console.width)
+    console.print("\\n" + "─" * console.width)
     console.print("[bold white]🎮 Interactive Options:[/bold white]")
     console.print("  [cyan]1.[/cyan] Run Quick Demo")
     console.print("  [cyan]2.[/cyan] Show Documentation")
     console.print("  [cyan]3.[/cyan] Export System Report")
     console.print("  [cyan]4.[/cyan] Model Playground (No-Code)")
     console.print("  [cyan]5.[/cyan] Exit")
-    console.print("─" * console.width + "\n")
+    console.print("─" * console.width + "\\n")
 
 
 def show_documentation():
@@ -743,7 +769,7 @@ def export_system_report():
     with open(filename, 'w') as f:
         json.dump(report, f, indent=2)
     
-    console.print(f"\n[green]✓[/green] Report exported to: [bold]{filename}[/bold]")
+    console.print(f"\\n[green]✓[/green] Report exported to: [bold]{filename}[/bold]")
 
 
 # --- MODEL PLAYGROUND (NO-CODE) ---
@@ -769,9 +795,12 @@ class ModelPlayground:
         if dataset_name == "Synthetic":
             current_shape = (20,)
             output_dim = 2
+            
+        # Capture initial input shape for testing later
+        initial_input_shape = current_shape
         
         # 2. Build Model
-        console.print("\n[bold]🏗️  Build Your Neural Network[/bold]")
+        console.print("\\n[bold]🏗️  Build Your Neural Network[/bold]")
         layers = []
         
         while True:
@@ -898,10 +927,10 @@ class ModelPlayground:
         layers.append(nn.Linear(current_shape[0], output_dim))
         model = nn.Sequential(*layers)
         
-        console.print("\n[bold green]✓ Model Constructed:[/bold green]")
+        console.print("\\n[bold green]✓ Model Constructed:[/bold green]")
         console.print(model)
         
-        if not Confirm.ask("\nStart Training?"):
+        if not Confirm.ask("\\nStart Training?"):
             return
 
         # 3. Setup Framework
@@ -979,8 +1008,8 @@ class ModelPlayground:
                             emo = raw.get('emotion', 'neutral')
                             surprise = raw.get('surprise', 0.0)
                             cons_panel = Panel(
-                                f"Emotion: [bold magenta]{emo.upper()}[/bold magenta]\n"
-                                f"Surprise: {surprise:.2f}\n"
+                                f"Emotion: [bold magenta]{emo.upper()}[/bold magenta]\\n"
+                                f"Surprise: {surprise:.2f}\\n"
                                 f"Confidence: {raw.get('confidence', 0.0):.2f}",
                                 title="🧠 Machine Consciousness",
                                 border_style="magenta"
@@ -995,7 +1024,7 @@ class ModelPlayground:
                 if step > 200:
                     break
                     
-        console.print("\n[bold green]✓ Training Complete![/bold green]")
+        console.print("\\n[bold green]✓ Training Complete![/bold green]")
         
         # --- SAVE & INTEGRATE ---
         if Confirm.ask("Save this model?"):
@@ -1003,8 +1032,8 @@ class ModelPlayground:
             torch.save(model.state_dict(), filename)
             console.print(f"[green]✓ Model saved to {filename}[/green]")
             
-            if Confirm.ask("\n🚀 Test this model in the Interactive Simulation (Option 1)?"):
-                InteractiveDemo.run_quick_demo(model=model)
+            if Confirm.ask("\\n🚀 Test this model in the Interactive Simulation (Option 1)?"):
+                InteractiveDemo.run_quick_demo(model=model, input_shape=initial_input_shape)
                 return
 
         Prompt.ask("Press Enter to return to menu")
@@ -1013,26 +1042,26 @@ class ModelPlayground:
 # --- FALLBACK UI ---
 def run_basic_dashboard():
     """Fallback for environments without Rich"""
-    print("\n" + "=" * 60)
+    print("\\n" + "=" * 60)
     print(f"  AirborneHRS v{VERSION}")
     print(f"  by {AUTHOR}")
     print("=" * 60)
     
     hw = SystemMonitor.get_hardware_info()
-    print("\nSystem Information:")
+    print("\\nSystem Information:")
     print("-" * 60)
     for k, v in hw.items():
         print(f"  {k:<20} : {v}")
     
-    print("\nModule Status:")
+    print("\\nModule Status:")
     print("-" * 60)
     for name, path, success, msg in ModuleChecker.run_full_check():
         status = "OK" if success else f"FAIL ({msg})"
         print(f"  [{'✓' if success else '✗'}] {name:<20} : {status}")
     
-    print("\n" + "=" * 60)
+    print("\\n" + "=" * 60)
     print("System ready. Import with: from airbornehrs import AdaptiveFramework")
-    print("=" * 60 + "\n")
+    print("=" * 60 + "\\n")
 
 
 # --- CLI ARGUMENT PARSER ---
@@ -1066,7 +1095,7 @@ def main():
         if HAS_RICH:
             show_documentation()
         else:
-            print("\nDocumentation requires Rich UI. Install with: pip install rich")
+            print("\\nDocumentation requires Rich UI. Install with: pip install rich")
         return
     
     if args.report:
@@ -1081,7 +1110,7 @@ def main():
             # Interactive menu
             while True:
                 choice = Prompt.ask(
-                    "\n[bold]Select option[/bold]",
+                    "\\n[bold]Select option[/bold]",
                     choices=["1", "2", "3", "4", "5"],
                     default="5"
                 )
@@ -1096,14 +1125,14 @@ def main():
                     ModelPlayground.run()
                     run_interactive_dashboard() # Re-render menu
                 elif choice == "5":
-                    console.print("\n[bold green]👋 Goodbye![/bold green]\n")
+                    console.print("\\n[bold green]👋 Goodbye![/bold green]\\n")
                     break
                 
         except KeyboardInterrupt:
-            console.print("\n\n[bold yellow]Interrupted by user[/bold yellow]")
+            console.print("\\n\\n[bold yellow]Interrupted by user[/bold yellow]")
         except Exception as e:
-            console.print(f"\n[bold red]Error:[/bold red] {e}")
-            console.print("\n[dim]Falling back to basic mode...[/dim]\n")
+            console.print(f"\\n[bold red]Error:[/bold red] {e}")
+            console.print("\\n[dim]Falling back to basic mode...[/dim]\\n")
             run_basic_dashboard()
     else:
         run_basic_dashboard()

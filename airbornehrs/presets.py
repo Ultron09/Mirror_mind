@@ -111,6 +111,27 @@ class Preset:
     consciousness_buffer_size: int = 5000
     novelty_threshold: float = 2.0
     
+    # V1.1.1 "Sentient": Advanced Optimization
+    use_lookahead: bool = True       # Lookahead optimizer for better generalization
+    use_gradient_centralization: bool = True  # Gradient centralization for stability
+    
+    # V7.1: CORTEX ENGINE (MoE - Mixture of Experts)
+    use_moe: bool = False
+    num_experts: int = 4
+    top_k_experts: int = 2
+    input_dim: int = 0  # Required for MoE gating if > 0. Else uses model_dim.
+    
+    # Meta-Controller / Reptile Configuration
+    use_reptile: bool = True
+    reptile_learning_rate: float = 0.1
+    reptile_update_interval: int = 5
+    min_lr: float = 1e-6
+    max_lr: float = 1e-2
+    curriculum_start_difficulty: float = 0.1
+    curriculum_increase_rate: float = 0.01
+    use_learned_optimizer: bool = True
+    learned_optimizer_hidden_dim: int = 32
+    
     def merge(self, other: 'Preset') -> 'Preset':
         """Merge another preset into this one (other overwrites self)."""
         self_dict = asdict(self)

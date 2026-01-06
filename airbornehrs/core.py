@@ -105,11 +105,14 @@ class AdaptiveFrameworkConfig:
     novelty_threshold: float = 2.0
     
     # SI Parameters (Restored)
+    importance_method: str = 'ewc'  # 'ewc', 'si', or 'hybrid'
     si_lambda: float = 1.0
     si_xi: float = 1e-3
 
     # [V8.0] Optimization
     use_lookahead: bool = True
+    lookahead_k: int = 5
+    lookahead_alpha: float = 0.5
     use_gradient_centralization: bool = True
 
     # --- V7.1: CORTEX ENGINE (MoE) ---
@@ -117,6 +120,17 @@ class AdaptiveFrameworkConfig:
     num_experts: int = 4
     top_k_experts: int = 2
     input_dim: int = 0 # Required for MoE gating if > 0. Else uses model_dim.
+
+    # Meta-Controller / Reptile Configuration
+    use_reptile: bool = True
+    reptile_learning_rate: float = 0.1
+    reptile_update_interval: int = 5
+    min_lr: float = 1e-6
+    max_lr: float = 1e-2
+    curriculum_start_difficulty: float = 0.1
+    curriculum_increase_rate: float = 0.01
+    use_learned_optimizer: bool = True
+    learned_optimizer_hidden_dim: int = 32
 
     @classmethod
     def production(cls):
@@ -181,7 +195,9 @@ class FeedbackBuffer:
         else:
             replace_idx = random.randint(0, self.total_seen)
             if replace_idx < self.capacity:
+                old_snapshot = self.buffer[replace_idx]
                 self.buffer[replace_idx] = snapshot
+                del old_snapshot # Explicitly release memory
         self.total_seen += 1
 
 
@@ -393,8 +409,16 @@ class AdaptiveFramework(nn.Module):
 
         # Meta-Controller (Reptile)
         self.meta_controller = MetaController(self, MetaControllerConfig(
-            use_reptile=True,
-            reptile_update_interval=5
+            use_reptile=config.use_reptile,
+            reptile_learning_rate=config.reptile_learning_rate,
+            reptile_update_interval=config.reptile_update_interval,
+            base_lr=config.learning_rate,
+            min_lr=config.min_lr,
+            max_lr=config.max_lr,
+            curriculum_start_difficulty=config.curriculum_start_difficulty,
+            curriculum_increase_rate=config.curriculum_increase_rate,
+            use_learned_optimizer=config.use_learned_optimizer,
+            learned_optimizer_hidden_dim=config.learned_optimizer_hidden_dim
         ))
         
         self.meta_optimizer = AdamW(self.introspection_engine.parameters(), 
@@ -402,8 +426,8 @@ class AdaptiveFramework(nn.Module):
                                    weight_decay=1e-2) 
         
         # State Tracking
-        self.loss_history = deque(maxlen=100)
-        self.meta_log_probs = []
+        self.loss_history = deque(maxlen=10000)
+        self.meta_log_probs = deque(maxlen=1000) # Cap meta log probs too
         self.step_count = 0
         self.reward_baseline = 0.0
         self.alpha = 0.1
@@ -420,8 +444,8 @@ class AdaptiveFramework(nn.Module):
         # [V8.0] Optimization: Lookahead Wrapper
         if self.config.use_lookahead:
             # Simple Lookahead implementation wrapper
-            self.lookahead_k = 5
-            self.lookahead_alpha = 0.5
+            self.lookahead_k = getattr(config, 'lookahead_k', 5)
+            self.lookahead_alpha = getattr(config, 'lookahead_alpha', 0.5)
             self.lookahead_step = 0
             self.slow_weights = {n: p.data.clone().detach() for n, p in self.model.named_parameters() if p.requires_grad}
 
@@ -603,7 +627,13 @@ class AdaptiveFramework(nn.Module):
         if logits.shape == target_data.shape: # Regression
             loss = F.mse_loss(logits.float(), target_data.float())
         else: # Classification
-            if logits.dim() > target_data.dim() and target_data.dim() == 1:
+            # Handle Sequence Classification [Batch, Seq, Vocab] vs [Batch, Seq]
+            if logits.dim() == 3 and target_data.dim() == 2:
+                 # Flatten for CrossEntropy: [B*Seq, Vocab] vs [B*Seq]
+                 if target_data.dtype != torch.long:
+                     target_data = target_data.long()
+                 loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), target_data.reshape(-1))
+            elif logits.dim() > target_data.dim() and target_data.dim() == 1:
                  if target_data.dtype != torch.long:
                      target_data = target_data.long()
                  loss = F.cross_entropy(logits.view(-1, logits.size(-1)), target_data.view(-1))
@@ -699,10 +729,18 @@ class AdaptiveFramework(nn.Module):
              
         if enable_dream: self.step_count += 1
             
+        # [V8.0] Ensure all metrics for demo are present
+        z_score = consciousness_metrics.get('surprise', 0.0)
+        mode = self.meta_controller.current_mode if self.meta_controller else 'NORMAL'
+        plasticity = consciousness_metrics.get('learning_rate_multiplier', 1.0)
+
         return {
             'loss': loss.item(),
             'reg_loss': reg_loss.item(),
             'total_loss': total_loss.item(),
+            'z_score': z_score,
+            'mode': mode,
+            'plasticity': plasticity,
             **consciousness_metrics
         }
 
@@ -829,6 +867,14 @@ class AdaptiveFramework(nn.Module):
     def consolidate_memory(self, **kwargs):
         """Wrapper for Unified Memory consolidation (Backward Compatibility)."""
         return self.memory.consolidate(**kwargs)
+
+    def save_memory(self, name: Optional[str] = None):
+        """Wrapper for saving task memory."""
+        return self.memory.save_task_memory(name)
+
+    def load_memory(self, path_or_name: str):
+        """Wrapper for loading task memory."""
+        return self.memory.load_task_memory(path_or_name)
 
     def save_checkpoint(self, path: str):
         Path(path).parent.mkdir(parents=True, exist_ok=True)

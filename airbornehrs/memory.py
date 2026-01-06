@@ -117,8 +117,10 @@ class HolographicAssociativeMemory:
         self.num_clusters = num_clusters
         self.capacity = capacity
         self.centroids = torch.randn(num_clusters, feature_dim) # Random init
-        self.clusters = {i: deque(maxlen=capacity // num_clusters) for i in range(num_clusters)}
+        # Manual deque management for explicit del
+        self.clusters = {i: deque() for i in range(num_clusters)}
         self.initialized = False
+        self.max_cluster_size = capacity // num_clusters
         
     def add(self, snapshot, feature_vector: torch.Tensor):
         """Add memory to the closest cluster."""
@@ -140,7 +142,13 @@ class HolographicAssociativeMemory:
         self.centroids[cluster_idx] = 0.99 * self.centroids[cluster_idx] + 0.01 * fv
         
         # Store
-        self.clusters[cluster_idx].append(snapshot)
+        cluster = self.clusters[cluster_idx]
+        cluster.append(snapshot)
+        
+        # Explicit memory management
+        if len(cluster) > self.max_cluster_size:
+            old_snapshot = cluster.popleft()
+            del old_snapshot # Force release
         
     def retrieve(self, query_vector: torch.Tensor, k: int = 32) -> List[Any]:
         """Retrieve memories from the most relevant clusters."""
@@ -550,7 +558,7 @@ class PrioritizedReplayBuffer:
     def __init__(self, capacity: int = 10000, temperature: float = 0.6):
         self.capacity = capacity
         self.temperature = max(temperature, 1e-6)  # safety
-        self.buffer = deque(maxlen=capacity)
+        self.buffer = deque() # Manual management for explicit del
 
     def add(self, snapshot, z_score: float = 0.0, importance: float = 1.0):
         """
@@ -566,6 +574,11 @@ class PrioritizedReplayBuffer:
                 s.age_in_steps += 1
 
         self.buffer.append(snapshot)
+        
+        # Explicit memory management
+        if len(self.buffer) > self.capacity:
+            old_snapshot = self.buffer.popleft()
+            del old_snapshot # Force release
 
     def sample_batch(self, batch_size: int, use_priorities: bool = True):
         """

@@ -241,7 +241,6 @@ class EpisodicMemory:
             emotional_state=emotional_state,
             task_difficulty=task_difficulty,
             x=x.detach().cpu() if isinstance(x, torch.Tensor) else None,
-            y=y.detach().cpu() if y is not None else None,
             features=features.detach().cpu() if features is not None else None
         )
         
@@ -250,7 +249,8 @@ class EpisodicMemory:
         # Forget least relevant memories if full
         if len(self.episodes) > self.max_episodes:
             # Drop the oldest, least effective memory (Simple heuristic)
-            self.episodes.pop(0)
+            old_episode = self.episodes.pop(0)
+            del old_episode # Explicit release
     
     def retrieve_relevant_memories(self,
                                   current_surprise: float,
@@ -552,6 +552,7 @@ class EnhancedConsciousnessCore:
         print(f"DEBUG: Initializing Global Workspace with dim={feature_dim}, num_heads={num_heads}", flush=True)
         self.global_workspace = RecursiveGlobalWorkspace(dim=feature_dim, num_heads=num_heads)
         self.current_thought_trace = [] # Trace of thought steps
+        self.thought_stream = deque(maxlen=1000) # Stream of thoughts
         self.confusion_level = 0.0
         
         # Basic tracking
@@ -578,10 +579,27 @@ class EnhancedConsciousnessCore:
 
         # 1. Error and Surprise
         y_pred_flat = y_pred.view(y_pred.size(0), -1)
+        
+        # Check for Classification (1D targets or 2D sequence targets)
+        is_classification = False
         if y_true.dim() == 1 and y_pred_flat.size(1) > 1:
+            is_classification = True
+        elif y_true.dim() == 2 and y_pred.dim() == 3:
+            # Sequence classification [B, S] vs [B, S, V]
+            is_classification = True
+            
+        if is_classification:
              # Classification
-             error = F.cross_entropy(y_pred_flat, y_true, reduction='none')
-             probs = F.softmax(y_pred_flat, dim=1)
+             if y_true.dim() == 2:
+                 # Flatten sequence: [B, S] -> [B*S], [B, S, V] -> [B*S, V]
+                 y_t = y_true.reshape(-1)
+                 y_p = y_pred.reshape(-1, y_pred.size(-1))
+             else:
+                 y_t = y_true
+                 y_p = y_pred_flat
+                 
+             error = F.cross_entropy(y_p, y_t, reduction='none')
+             probs = F.softmax(y_p, dim=1)
              confidence, _ = probs.max(dim=1)
              confidence = confidence.mean().item()
              
@@ -589,11 +607,37 @@ class EnhancedConsciousnessCore:
              uncertainty = -(probs * torch.log(probs + 1e-6)).sum(dim=1).mean().item()
              
         else:
-             # Regression
+             # Regression or Fallback
              # Ensure float for MSE
              y_pred_f = y_pred_flat.float()
-             y_true_f = y_true.view_as(y_pred_flat).float()
-             error = F.mse_loss(y_pred_f, y_true_f, reduction='none').mean(dim=1)
+             
+             # FIX: Handle shape mismatch for regression calculation
+             if y_true.numel() != y_pred_f.numel():
+                 # Handle mismatch (e.g. [B] vs [B, 1] or [B] vs [B, C])
+                 if y_true.size(0) == y_pred_f.size(0):
+                     # Batch size matches, likely [B] vs [B, 1]
+                     y_true_f = y_true.view(y_pred_f.size(0), -1).float()
+                     # If still mismatch (e.g. [B, 1] vs [B, C]), take mean or slice
+                     if y_true_f.numel() != y_pred_f.numel():
+                         # Just use flat view and truncate to be safe
+                         y_true_f = y_true.float().view(-1)
+                         y_pred_f = y_pred_f.view(-1)
+                         min_len = min(y_true_f.size(0), y_pred_f.size(0))
+                         y_true_f = y_true_f[:min_len]
+                         y_pred_f = y_pred_f[:min_len]
+                 else:
+                     # Total mismatch
+                     y_true_f = y_true.float().view(-1)
+                     y_pred_f = y_pred_f.view(-1)
+                     min_len = min(y_true_f.size(0), y_pred_f.size(0))
+                     y_true_f = y_true_f[:min_len]
+                     y_pred_f = y_pred_f[:min_len]
+             else:
+                 y_true_f = y_true.view_as(y_pred_flat).float()
+                 
+             error = F.mse_loss(y_pred_f, y_true_f, reduction='none')
+             if error.dim() > 1: error = error.mean(dim=1)
+             
              confidence = 1.0 / (1.0 + error.mean().item())
              uncertainty = features.var(dim=0).mean().item() if features is not None else 0.5
 
@@ -631,6 +675,7 @@ class EnhancedConsciousnessCore:
                 if features.size(-1) == self.feature_dim:
                     broadcast_state, trace = self.global_workspace(features, thinking_steps=thinking_steps)
                     self.current_thought_trace = trace
+                    self.thought_stream.append(trace)
             except Exception:
                 pass # Dimension mismatch or other error, skip thought
 
