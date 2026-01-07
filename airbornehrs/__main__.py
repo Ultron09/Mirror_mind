@@ -939,13 +939,23 @@ class ModelPlayground:
             return
 
         # 3. Setup Framework
-        from airbornehrs.core import AdaptiveFramework
-        from airbornehrs.presets import PRESETS
+        from airbornehrs.core import AdaptiveFramework, AdaptiveFrameworkConfig
         import torch.optim as optim
         from torchvision import datasets, transforms
         
-        config = PRESETS.fast()
+        # Use V2.0 Production Config and override for speed/compatibility
+        config = AdaptiveFrameworkConfig.production()
+        config.model_dim = 128
+        config.learning_rate = 5e-3
         config.enable_consciousness = True
+        config.warmup_steps = 10
+        
+        # Hardware compatibility check
+        if not torch.cuda.is_available():
+            config.device = 'cpu'
+            config.use_amp = False
+            console.print("[yellow]⚠ CPU Mode detected - AMP disabled[/yellow]")
+        
         framework = AdaptiveFramework(model, config)
         
         # 4. Load Data
@@ -1013,8 +1023,8 @@ class ModelPlayground:
                             emo = raw.get('emotion', 'neutral')
                             surprise = raw.get('surprise', 0.0)
                             cons_panel = Panel(
-                                f"Emotion: [bold magenta]{emo.upper()}[/bold magenta]\\n"
-                                f"Surprise: {surprise:.2f}\\n"
+                                f"Emotion: [bold magenta]{emo.upper()}[/bold magenta]\n"
+                                f"Surprise: {surprise:.2f}\n"
                                 f"Confidence: {raw.get('confidence', 0.0):.2f}",
                                 title="🧠 Machine Consciousness",
                                 border_style="magenta"

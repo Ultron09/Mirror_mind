@@ -33,55 +33,55 @@ It functions as a **Symbiotic Layer** that wraps around a PyTorch `nn.Module`, i
 
 The framework implements a **Joint-Embedding Predictive Architecture (I-JEPA)** to enable self-supervised foresight. Instead of predicting tokens, the model projects the current state $z_t$ forward in time.
 
-* **Mechanism**: The Predictor network $P_\phi$ estimates the future latent state $\hat{z}_{t+1}$ given the current state $z_t$ and action $a_t$.
-* **Surprise Loss ($\mathcal{L}_{S}$)**: The divergence between the *predicted* future and the *actual* encoded future serves as an intrinsic supervision signal:
-  $$
-  \mathcal{L}_{S} = || P_\phi(z_t, a_t) - E_\theta(x_{t+1}) ||_2^2
-  $$
+*   **Surprise Loss ($\mathcal{L}_{S}$)**: The divergence between the *predicted* future and the *actual* encoded future serves as an intrinsic supervision signal:
 
-  This forces the model to learn causal dynamics and object permanence independent from the primary task labels.
+$$
+\mathcal{L}_{S} = || P_\phi(z_t, a_t) - E_\theta(x_{t+1}) ||_2^2
+$$
+
+This forces the model to learn causal dynamics and object permanence independent from the primary task labels.
 
 ### 2. SCALABLE FRACTAL ROUTING (H-MoE)
-
 **[Deep Dive ↗](docs/technical/SYNTHETIC_INTUITION.md#2-hierarchical-mixture-of-experts) | [Math Proof ↗](docs/math/FRACTAL_ROUTING.md)**
 
 To decouple model capacity from inference cost, V2.0.0 utilizes a **Bi-Level Hierarchical Mixture of Experts**.
 
-* **Topology**: A dual-layer router first classifies the input domain (e.g., Audio vs Visual), then routes to fine-grained expert MLPs.
-* **Capacity**:
-  The active parameter set $\Theta_{active}$ is a sparse subset of total parameters $\Theta_{total}$:
-  $$
-  y = \sum_{i \in \text{TopK}(G(x))} G(x)_i \cdot E_i(x)
-  $$
+*   **Topology**: A dual-layer router first classifies the input domain (e.g., Audio vs Visual), then routes to fine-grained expert MLPs.
+*   **Capacity**:
+    The active parameter set $\Theta_{active}$ is a sparse subset of total parameters $\Theta_{total}$:
 
-  where $||G(x)||_0 = k \ll N$.
-  This allows for parameter counts reaching the trillions while maintaining $O(1)$ FLOPS during inference.
+$$
+y = \sum_{i \in \text{TopK}(G(x))} G(x)_i \cdot E_i(x)
+$$
+
+    where $||G(x)||_0 = k \ll N$.
+    This allows for parameter counts reaching the trillions while maintaining $O(1)$ FLOPS during inference.
 
 ### 3. RELATIONAL GRAPH MEMORY
-
 **[Deep Dive ↗](docs/technical/SYNTHETIC_INTUITION.md#3-relational-graph-memory) | [Math Proof ↗](docs/math/SEMANTIC_GRAPH.md)**
 
 AirborneHRS deprecates linear buffers in favor of a **Dynamic Semantic Graph** $G = \{V, E\}$.
 
-* **Storage**: Events are stored as nodes $N_i$.
-* **Retrieval**: Links ($E_{ij}$) are formed based on latent cosine similarity $\phi$:
-  $$
-  \phi(z_i, z_j) = \frac{z_i \cdot z_j}{||z_i|| ||z_j||}
-  $$
+*   **Storage**: Events are stored as nodes $N_i$.
+*   **Retrieval**: Links ($E_{ij}$) are formed based on latent cosine similarity $\phi$:
 
-  When a query $q$ enters the system, activation spreads across edges where $\phi > \tau$, retrieving not just the specific memory but its semantic context.
+$$
+\phi(z_i, z_j) = \frac{z_i \cdot z_j}{||z_i|| ||z_j||}
+$$
+
+    When a query $q$ enters the system, activation spreads across edges where $\phi > \tau$, retrieving not just the specific memory but its semantic context.
 
 ### 4. NEURAL HEALTH MONITOR (Autonomic Repair)
-
 **[Deep Dive ↗](docs/technical/SYNTHETIC_INTUITION.md#4-neural-health-monitor) | [Math Proof ↗](docs/math/AUTONOMIC_REPAIR.md)**
 
 A background daemon continuously profiles the statistical distribution of gradients and activations across all layers.
 
-* **Instability Detection**:
-  We compute the Z-Score of the gradient norm $||\nabla\theta||$ relative to its running history ($\mu_{grad}, \sigma_{grad}$):
-  $$
-  Z_{grad} = \frac{||\nabla\theta|| - \mu_{grad}}{\sigma_{grad}}
-  $$
+*   **Instability Detection**:
+    We compute the Z-Score of the gradient norm $||\nabla\theta||$ relative to its running history ($\mu_{grad}, \sigma_{grad}$):
+
+$$
+Z_{grad} = \frac{||\nabla\theta|| - \mu_{grad}}{\sigma_{grad}}
+$$
 * **Intervention**:
   * **Dead Neurons**: If $P(activation=0) > 0.95$, the layer is re-initialized.
   * **Exploding Gradients**: If $Z_{grad} > 3.0$, the learning rate is dynamically damped via a non-linear decay factor.

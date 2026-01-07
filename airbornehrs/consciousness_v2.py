@@ -710,7 +710,8 @@ class EnhancedConsciousnessCore:
         )
 
         # 6. Return Metrics
-        return {
+        # 6. Return Metrics
+        metrics = {
             'loss': current_loss,
             'surprise': surprise,
             'uncertainty': uncertainty,
@@ -722,6 +723,11 @@ class EnhancedConsciousnessCore:
             'importance': 1.0 + surprise + (1-confidence),
             'learning_rate_multiplier': self.emotional_system.get_learning_multiplier(self.current_emotional_state)
         }
+        
+        # [V8.0] Expose for UI/Dashboard
+        self.last_metrics = metrics
+        
+        return metrics
     
     def _update_error_stats(self, error: torch.Tensor):
         """Update running statistics for surprise detection."""

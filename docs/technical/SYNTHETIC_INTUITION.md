@@ -45,6 +45,10 @@ The $S$ term (Surprise) acts as an intrinsic loss function.
 
 AirborneHRS minimizes $S$ via gradient descent *simultaneously* with the main task loss. This forces the model to learn causal structures, not just statistical correlations.
 
+$$
+S = || \hat{s}_{t+1} - s_{t+1} ||^2
+$$
+
 **[📂 ACCESS CLASSIFIED MATH PROOF](../math/PREDICTIVE_SURPRISE.md)**
 
 ---
@@ -62,8 +66,14 @@ To scale capacity without scaling compute, V2.0.0 treats the neural network not 
     -   Inside a Domain Cluster, a second router selects the Top-K (usually K=2) specific expert networks (MLPs) best suited for the specific pattern (e.g., "Vertical Edges expert" vs "Color Gradient expert").
 
 ### Mathematical Benefit
-$$ \text{Total Parameters} \approx N \times M $$
-$$ \text{Active Parameters} \approx \text{TopK} $$
+
+$$
+\text{Total Parameters} \approx N \times M
+$$
+$$
+\text{Active Parameters} \approx \text{TopK}
+$$
+
 Where $N$ is number of experts and $M$ is expert size.
 This allows us to increase $N$ to thousands (trillion-parameter scale) while inference cost remains constant ($\approx 2$ active blocks).
 
@@ -79,7 +89,9 @@ Standard memory buffers (Experience Replay) are unstructured lists. V2.0.0 uses 
 -   **Nodes**: Events or Snapshots $E_i$ containing state vectors $z_i$.
 -   **Edges**: Semantic links based on cosine similarity $\text{sim}(z_i, z_j)$.
 
-$$ \text{Edge}_{ij} = \mathbb{I}(\text{sim}(z_i, z_j) > \tau) $$
+$$
+\text{Edge}_{ij} = \mathbb{I}(\text{sim}(z_i, z_j) > \tau)
+$$
 
 ### Retrieval Process
 When the agent encounters a current state $z_t$:
