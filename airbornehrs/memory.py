@@ -171,6 +171,103 @@ class HolographicAssociativeMemory:
         return candidates
 
 
+# --- V9.0: GRAPH-BASED RELATIONAL MEMORY ---
+
+class MemoryNode:
+    """Represents a single cognitive event with multi-modal features and links."""
+    def __init__(self, snapshot, feature_vector: torch.Tensor, timestamp: float):
+        self.snapshot = snapshot
+        self.feature_vector = feature_vector.detach().cpu()
+        if self.feature_vector.dim() > 1:
+            self.feature_vector = self.feature_vector.mean(dim=0)
+        self.timestamp = timestamp
+        self.links = [] # List of (neighbor_index, weight)
+
+class RelationalGraphMemory(nn.Module):
+    """
+    [V9.0] Graph-Based Episodic Memory.
+    Stores events as nodes and computes relational links using feature similarity.
+    Enables 'Analogical Reasoning' by traversing the memory graph.
+    """
+    def __init__(self, feature_dim=256, capacity=1000, link_threshold=0.85):
+        super().__init__()
+        self.feature_dim = feature_dim
+        self.capacity = capacity
+        self.link_threshold = link_threshold
+        self.nodes: List[MemoryNode] = []
+        self.logger = logging.getLogger("RelationalGraphMemory")
+
+    def add(self, snapshot, feature_vector: torch.Tensor):
+        if feature_vector is None: return
+        
+        new_node = MemoryNode(snapshot, feature_vector, datetime.datetime.now().timestamp())
+        
+        # 1. Compute Relational Links (Similarity to existing nodes)
+        if self.nodes:
+            # Vectorized similarity compute
+            all_features = torch.stack([n.feature_vector for n in self.nodes])
+            # Cosine similarity
+            sim = F.cosine_similarity(new_node.feature_vector.unsqueeze(0), all_features)
+            
+            # Find nodes above threshold
+            indices = (sim >= self.link_threshold).nonzero(as_tuple=True)[0]
+            for idx in indices:
+                idx = idx.item()
+                weight = sim[idx].item()
+                # Bidirectional Link
+                new_node.links.append((idx, weight))
+                self.nodes[idx].links.append((len(self.nodes), weight))
+        
+        # 2. Add node
+        self.nodes.append(new_node)
+        
+        # 3. Capacity Management
+        if len(self.nodes) > self.capacity:
+            self._prune_memory()
+
+    def _prune_memory(self):
+        """Remove the oldest or least-linked node."""
+        # Simple FIFO for now, but could be 'Least Linked'
+        removed_idx = 0
+        self.nodes.pop(removed_idx)
+        
+        # Re-index all links (O(N*E) but N is small)
+        for node in self.nodes:
+            new_links = []
+            for neighbor_idx, weight in node.links:
+                if neighbor_idx == removed_idx: continue
+                new_idx = neighbor_idx - 1 if neighbor_idx > removed_idx else neighbor_idx
+                new_links.append((new_idx, weight))
+            node.links = new_links
+
+    def retrieve(self, query_vector: torch.Tensor, k: int = 5) -> List[Any]:
+        """
+        Associative Retrieval:
+        1. Find most similar node.
+        2. Return linked neighbors (analogies).
+        """
+        if not self.nodes or query_vector is None: return []
+        
+        qv = query_vector.detach().cpu()
+        if qv.dim() > 1: qv = qv.mean(dim=0)
+        
+        # 1. Direct Retrieval
+        all_features = torch.stack([n.feature_vector for n in self.nodes])
+        sim = F.cosine_similarity(qv.unsqueeze(0), all_features)
+        
+        top_val, top_idx = torch.topk(sim, k=min(k, len(self.nodes)))
+        
+        results = []
+        for idx in top_idx:
+            node = self.nodes[idx.item()]
+            results.append(node.snapshot)
+            # 2. Level-1 Associative Retrieval (Links)
+            for neighbor_idx, _ in node.links[:2]: # Top 2 neighbors per hit
+                results.append(self.nodes[neighbor_idx].snapshot)
+                
+        return results[:k]
+
+
 class UnifiedMemoryHandler:
     """
     Hybrid SI + EWC + OGD + Holographic handler.
@@ -184,7 +281,9 @@ class UnifiedMemoryHandler:
                  ewc_lambda: float = 0.4,
                  consolidation_criterion: str = 'hybrid',
                  use_ogd: bool = False,
-                 use_holographic: bool = True):
+                 use_holographic: bool = True,
+                 use_graph_memory: bool = False,
+                 graph_threshold: float = 0.85):
         
         self.model = model
         self.method = method
@@ -194,6 +293,7 @@ class UnifiedMemoryHandler:
         self.consolidation_criterion = consolidation_criterion
         self.use_ogd = use_ogd
         self.use_holographic = use_holographic
+        self.use_graph_memory = use_graph_memory
         self.logger = logging.getLogger('UnifiedMemoryHandler')
         
         # OGD Projector
@@ -201,6 +301,9 @@ class UnifiedMemoryHandler:
         
         # Holographic Memory (V8.0)
         self.holographic_memory = HolographicAssociativeMemory() if use_holographic else None
+        
+        # [V9.0] Graph-Based Relational Memory
+        self.graph_memory = RelationalGraphMemory(link_threshold=graph_threshold) if use_graph_memory else None
         
         # SI state (per-parameter accumulators)
         self.omega_accum = {

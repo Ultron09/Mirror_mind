@@ -11,7 +11,7 @@ Key Components:
     - ProductionAdapter: Simplified API for inference with online learning
 """
 
-__version__ = "1.1.1"
+__version__ = "2.0.0"
 __license__ = "MIT"
 __author__ = "Suryaansh Prithvijit Singh"
 

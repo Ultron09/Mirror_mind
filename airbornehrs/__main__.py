@@ -24,7 +24,7 @@ import torch.nn as nn
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # --- CONFIG ---
-VERSION = "1.1.1"
+VERSION = "2.0.0"
 AUTHOR = "Suryaansh Prithvijit Singh"
 ASCII_LOGO = """
  █████╗ ██╗██████╗ ██████╗  ██████╗ ██████╗ ███╗   ██╗███████╗
@@ -201,8 +201,9 @@ class ModuleChecker:
         ("Consciousness", "airbornehrs.consciousness_v2", "ConsciousnessCore"),
         ("Meta Controller", "airbornehrs.meta_controller", "MetaController"),
         ("Adapters", "airbornehrs.adapters", "AdapterBank"),
-        ("Presets", "airbornehrs.presets", "PRESETS"),
-        ("Production", "airbornehrs.production", "ProductionAdapter"),
+        ("World Model (V9)", "airbornehrs.world_model", "WorldModel"),
+        ("Hierarchical MoE (V9)", "airbornehrs.moe", "HierarchicalMoE"),
+        ("Health Monitor (V9)", "airbornehrs.health_monitor", "NeuralHealthMonitor"),
     ]
     
     @staticmethod
@@ -342,17 +343,21 @@ class InteractiveDemo:
         try:
             import torch.nn as nn
             from airbornehrs.core import AdaptiveFramework
-            from airbornehrs.presets import PRESETS
-
-            # Demo config
-            config = PRESETS.fast()
+            # Demo config (V9.0 Defaults)
+            from airbornehrs.core import AdaptiveFrameworkConfig
+            
+            # Use production defaults which enable V9 features (MoE, World Model, Memory)
+            config = AdaptiveFrameworkConfig.production() 
+            
+            # Override for interactive demo speed
             config.warmup_steps = 2
-            config.novelty_z_threshold = 0.5
-            config.survival_z_threshold = 1.0
+            config.novelty_threshold = 0.5
             config.panic_threshold = 0.8
             config.enable_consciousness = True
-            config.evaluation_frequency = 1
-            config.dream_interval = 3
+            config.enable_world_model = True # Enable V9 Foresight
+            
+            # Use CPU for demo stability unless CUDA is robust
+            config.device = 'cpu' if not torch.cuda.is_available() else 'cuda'
 
             if model is None:
                 model = nn.Sequential(

@@ -24,13 +24,25 @@ class GatingNetwork(nn.Module):
         self.top_k = top_k
 
     def forward(self, x):
-        # x: [batch_size, input_dim]
-        # If x is not flat, flatten it for gating
-        if x.dim() > 2:
+        # x: [batch_size, input_dim] or [batch_size, seq, input_dim]
+        if x.dim() == 3:
+            # SOTA Sequence Pooling: [B, S, D] -> [B, D]
+            x_flat = x.mean(dim=1)
+        elif x.dim() > 3:
+            # Flatten multi-dim inputs (Images, etc)
             x_flat = x.view(x.size(0), -1)
         else:
             x_flat = x
             
+        # Verify alignment with gate input dimension
+        if x_flat.size(-1) != self.gate.in_features:
+            # Fallback: Force resize if possible, or raise clear error
+            if x_flat.numel() % self.gate.in_features == 0:
+                x_flat = x_flat.view(x.size(0), self.gate.in_features)
+            else:
+                raise ValueError(f"SOTA MoE Shape Mismatch: Got {x_flat.shape[1]}, expected {self.gate.in_features}. "
+                                 f"Original input: {x.shape}")
+
         logits = self.gate(x_flat)
         
         # Top-k gating
@@ -68,12 +80,8 @@ class SparseMoE(nn.Module):
         # If x is sequence [B, S, D], we might gate per token or per sequence.
         # For simplicity V7.0: Gate per sample (using flattened input).
         
-        if x.dim() > 2:
-            gate_input = x.view(x.size(0), -1)
-        else:
-            gate_input = x
-            
-        weights, indices = self.gate(gate_input) # weights: [B, k], indices: [B, k]
+        # [V9.0] Let GatingNetwork handle Pooling/Flattening
+        weights, indices = self.gate(x) # weights: [B, k], indices: [B, k]
         
         batch_size = x.size(0)
         
@@ -114,6 +122,70 @@ class SparseMoE(nn.Module):
             selected_weights = selected_weights.view(*view_shape)
             
             # Accumulate
-            final_output.index_add_(0, batch_idx, expert_out * selected_weights)
+            final_output = final_output.index_add(0, batch_idx, expert_out * selected_weights)
             
         return final_output, indices
+
+class HierarchicalMoE(nn.Module):
+    """
+    [V9.0] Hierarchical Mixture of Experts.
+    Uses tree-based routing for multi-domain specialization.
+    Level 1 Router -> Domain Clusters -> Level 2 Experts.
+    """
+    def __init__(self, base_model, input_dim, num_domains=2, experts_per_domain=2, top_k=1):
+        super().__init__()
+        self.num_domains = num_domains
+        self.experts_per_domain = experts_per_domain
+        self.top_k = top_k
+        
+        # Level 1 Router: Selects which Domain Cluster to use
+        self.domain_router = GatingNetwork(input_dim, num_domains, top_k=1)
+        
+        # Level 2: Domain Clusters (each is a SparseMoE)
+        self.domains = nn.ModuleList([
+            SparseMoE(base_model, input_dim, num_experts=experts_per_domain, top_k=top_k)
+            for _ in range(num_domains)
+        ])
+    
+    def forward(self, x):
+        """
+        Hierarchical Routing:
+        1. Select Domain Cluster (Level 1)
+        2. Within Domain, Select Experts (Level 2)
+        """
+        # [V9.0] Let GatingNetwork handle Pooling/Flattening
+        # 1. Level 1 Gating
+        domain_weights, domain_indices = self.domain_router(x) # [B, 1]
+        
+        batch_size = x.size(0)
+        final_output = None
+        
+        # 2. Sequential Dispatch to Domain Clusters
+        for i in range(self.num_domains):
+            # Mask for samples belonging to domain i
+            mask = (domain_indices == i).any(dim=1)
+            batch_idx = torch.where(mask)[0]
+            
+            if len(batch_idx) == 0:
+                continue
+                
+            selected_inputs = x[batch_idx]
+            
+            # 3. Level 2 Gating happens inside the SparseMoE domain
+            domain_out, _ = self.domains[i](selected_inputs)
+            
+            if final_output is None:
+                out_shape = list(domain_out.shape)
+                out_shape[0] = batch_size
+                final_output = torch.zeros(out_shape, device=x.device, dtype=domain_out.dtype)
+            
+            # Apply Level 1 weight (importance of this domain)
+            # Find the weight for domain i among the top-k (which is top-1 here)
+            d_w_mask = (domain_indices[batch_idx] == i)
+            # Get the weight where the index matched
+            # This is simplified because top_k=1
+            w = domain_weights[batch_idx, 0].view(len(batch_idx), *([1] * (domain_out.dim() - 1)))
+            
+            final_output = final_output.index_add(0, batch_idx, domain_out * w)
+            
+        return final_output, domain_indices

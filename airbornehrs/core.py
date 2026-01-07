@@ -31,6 +31,7 @@ from .consciousness_v2 import ConsciousnessCore
 from .adapters import AdapterBank
 from .moe import SparseMoE
 from .perception import PerceptionGateway
+from .world_model import WorldModel
 
 # OPTIMIZATION: Use Tensor Cores on Ampere+ GPUs
 torch.set_float32_matmul_precision('high')
@@ -109,6 +110,8 @@ class AdaptiveFrameworkConfig:
     importance_method: str = 'ewc'  # 'ewc', 'si', or 'hybrid'
     si_lambda: float = 1.0
     si_xi: float = 1e-3
+    use_graph_memory: bool = False # [V9.0] Graph-Based Episodic Memory
+    graph_memory_threshold: float = 0.85
 
     # [V8.0] Optimization
     use_lookahead: bool = True
@@ -118,8 +121,11 @@ class AdaptiveFrameworkConfig:
 
     # --- V7.1: CORTEX ENGINE (MoE) ---
     use_moe: bool = False
+    use_hierarchical_moe: bool = False
     num_experts: int = 4
     top_k_experts: int = 2
+    num_domains: int = 2
+    experts_per_domain: int = 2
     input_dim: int = 0 # Required for MoE gating if > 0. Else uses model_dim.
 
     # Meta-Controller / Reptile Configuration
@@ -138,6 +144,14 @@ class AdaptiveFrameworkConfig:
     vision_dim: int = 3 # Channels
     audio_dim: int = 80 # Mel bins
     text_dim: int = 0   # Optional projection
+    perception_layers: int = 2
+    perception_heads: int = 4
+
+    # --- V9.0: SYNTHETIC INTUITION ---
+    enable_world_model: bool = False
+    world_model_loss_weight: float = 0.1
+    enable_health_monitor: bool = True
+    health_check_interval: int = 20 # Every 20 steps
 
     @classmethod
     def production(cls):
@@ -357,14 +371,25 @@ class AdaptiveFramework(nn.Module):
         # [V7.1] MoE Transformation
         if getattr(config, 'use_moe', False):
             moe_input_dim = config.input_dim if config.input_dim > 0 else config.model_dim
-            self.logger.info("Transforming Cortex into Sparse MoE...")
-            self.model = SparseMoE(
-                base_model=self.model,
-                input_dim=moe_input_dim,
-                num_experts=config.num_experts,
-                top_k=config.top_k_experts
-            ).to(self.device)
-            self.logger.info("   ✅ Transformation Complete. The Mind is now distributed.")
+            if getattr(config, 'use_hierarchical_moe', False):
+                from .moe import HierarchicalMoE
+                self.logger.info("Transforming Cortex into Hierarchical MoE...")
+                self.model = HierarchicalMoE(
+                    base_model=self.model,
+                    input_dim=moe_input_dim,
+                    num_domains=config.num_domains,
+                    experts_per_domain=config.experts_per_domain,
+                    top_k=config.top_k_experts
+                ).to(self.device)
+            else:
+                self.logger.info("Transforming Cortex into Sparse MoE...")
+                self.model = SparseMoE(
+                    base_model=self.model,
+                    input_dim=moe_input_dim,
+                    num_experts=config.num_experts,
+                    top_k=config.top_k_experts
+                ).to(self.device)
+            self.logger.info("   [OK] Transformation Complete. The Mind is now distributed.")
         
         # 5. Memory System (Unified Handler V7.0)
         # We explicitly use UnifiedMemoryHandler, removing all EWC legacy code.
@@ -374,9 +399,11 @@ class AdaptiveFramework(nn.Module):
             si_lambda=getattr(config, 'si_lambda', 1.0),
             si_xi=getattr(config, 'si_xi', 1e-3),
             ewc_lambda=0.4,
-            consolidation_criterion=getattr(config, 'consolidation_criterion', 'hybrid')
+            consolidation_criterion=getattr(config, 'consolidation_criterion', 'hybrid'),
+            use_graph_memory=getattr(config, 'use_graph_memory', False),
+            graph_threshold=getattr(config, 'graph_memory_threshold', 0.85)
         )
-        self.logger.info(f"[BRAIN] Unified Memory System Online ({config.memory_type})")
+        self.logger.info(f"[BRAIN] Unified Memory System Online ({config.memory_type}, Graph={config.use_graph_memory})")
         
         # 6. Experience Replay
         self.feedback_buffer = FeedbackBuffer(config, self.device)
@@ -412,6 +439,19 @@ class AdaptiveFramework(nn.Module):
             input_dim=config.telemetry_dim, 
             hidden_dim=config.model_dim // 4
         ).to(self.device)
+        
+        # [V9.0] World Model (I-JEPA)
+        self.world_model = None
+        if self.config.enable_world_model:
+            self.world_model = WorldModel(self.config).to(self.device)
+            self._last_z_pred = None
+            self.logger.info("[SENSORY] World Model (Foresight) Enabled")
+        self.current_modifiers = None
+        self.meta_log_probs = []
+        self.loss_history = []
+        self.reward_baseline = 0.0
+        self.alpha = 0.1
+        self.step_count = 0
 
         # 4. Initialize Adapters & Hooks (Must run BEFORE optimizer creation)
         self._init_adapters_and_hooks()
@@ -430,6 +470,21 @@ class AdaptiveFramework(nn.Module):
         else:
             self.adapter_optimizer = None
 
+        self.meta_optimizer = AdamW(self.introspection_engine.parameters(), 
+                                   lr=config.meta_learning_rate,
+                                   weight_decay=1e-2)
+
+        # [V9.0] World Model Optimizer
+        if self.world_model:
+            self.world_model_optimizer = AdamW(self.world_model.parameters(), lr=config.learning_rate)
+            
+        # [V9.0] Neural Health Monitor
+        self.health_monitor = None
+        if self.config.enable_health_monitor:
+            from .health_monitor import NeuralHealthMonitor
+            self.health_monitor = NeuralHealthMonitor(self.model)
+            self.logger.info("[AUTONOMIC] Neural Health Monitor Active")
+
         # Meta-Controller (Reptile)
         self.meta_controller = MetaController(self, MetaControllerConfig(
             use_reptile=config.use_reptile,
@@ -443,17 +498,6 @@ class AdaptiveFramework(nn.Module):
             use_learned_optimizer=config.use_learned_optimizer,
             learned_optimizer_hidden_dim=config.learned_optimizer_hidden_dim
         ))
-        
-        self.meta_optimizer = AdamW(self.introspection_engine.parameters(), 
-                                   lr=config.meta_learning_rate,
-                                   weight_decay=1e-2) 
-        
-        # State Tracking
-        self.loss_history = deque(maxlen=10000)
-        self.meta_log_probs = deque(maxlen=1000) # Cap meta log probs too
-        self.step_count = 0
-        self.reward_baseline = 0.0
-        self.alpha = 0.1
         
         # Compilation
         if config.compile_model and hasattr(torch, 'compile'):
@@ -547,7 +591,35 @@ class AdaptiveFramework(nn.Module):
                     if self.adapter_bank:
                         adapted = self.adapter_bank.apply(layer_idx, inp, module_type)
                         if adapted is not inp:
-                            return adapted
+                            inp = adapted
+
+                    # [V8.0] Apply Sentient Affine Modifiers (System 2)
+                    if self.current_modifiers is not None:
+                        # self.current_modifiers: [B, 2] or [2]
+                        mods = self.current_modifiers
+                        if mods.dim() == 1:
+                            scale = 1.0 + mods[0]
+                            shift = mods[1]
+                        else:
+                            # Batch of modifiers: [B, 2]
+                            # Detect if inp is batch-first
+                            b_size = inp.size(0)
+                            if mods.size(0) == b_size:
+                                s = mods[:, 0]
+                                f = mods[:, 1]
+                                for _ in range(inp.dim() - 1):
+                                    s = s.unsqueeze(-1)
+                                    f = f.unsqueeze(-1)
+                                scale = 1.0 + s
+                                shift = f
+                            else:
+                                scale = 1.0 + mods[0, 0]
+                                shift = mods[0, 1]
+                                
+                        inp = inp * scale + shift
+                    
+                    if inp is not output:
+                        return inp
             except Exception:
                 pass
             return None
@@ -584,6 +656,7 @@ class AdaptiveFramework(nn.Module):
             # Introspection Step
             log_var, action, log_prob = self.introspection_engine(global_state)
             self.meta_log_probs.append(log_prob)
+            self.current_modifiers = action.squeeze() # [2]
             affine_modifiers = action.detach()
                 
         except Exception:
@@ -592,6 +665,20 @@ class AdaptiveFramework(nn.Module):
         # [V8.0] Store fused latent for consciousness
         self._last_fused_latent = fused_latent
 
+        # [V9.0] World Model Foresight - Just Record Inputs for optimization in train_step
+        if self.world_model and fused_latent is not None:
+            action_context = self.current_modifiers.detach() if self.current_modifiers is not None else None
+            if action_context is not None:
+                action_context = action_context.unsqueeze(0).expand(fused_latent.size(0), -1)
+            
+            # Store inputs for next step's World Model training
+            # We must DETACH them to avoid cross-step graphs hitting self.model
+            self._current_wm_inputs = (fused_latent.detach(), action_context)
+            
+            # For inference foresight (without gradients)
+            with torch.no_grad():
+                self._current_z_prediction = self.world_model(fused_latent, action_context)
+            
         return output, log_var, affine_modifiers
 
     def get_emotional_parameters(self, emotion: str) -> Tuple[float, bool, float]:
@@ -658,10 +745,14 @@ class AdaptiveFramework(nn.Module):
         else: # Classification
             # Handle Sequence Classification [Batch, Seq, Vocab] vs [Batch, Seq]
             if logits.dim() == 3 and target_data.dim() == 2:
-                 # Flatten for CrossEntropy: [B*Seq, Vocab] vs [B*Seq]
-                 if target_data.dtype != torch.long:
-                     target_data = target_data.long()
-                 loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), target_data.reshape(-1))
+                 # Check if Classification (Long) or Regression (Float)
+                 if target_data.dtype == torch.long or target_data.shape[1] != logits.shape[2]:
+                     # Flatten for CrossEntropy: [B*Seq, Vocab] vs [B*Seq]
+                     loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), target_data.reshape(-1))
+                 else:
+                     # Regression: Pool Sequence [B, S, D] -> [B, D] vs [B, D]
+                     pooled_logits = logits.mean(dim=1)
+                     loss = F.mse_loss(pooled_logits.float(), target_data.float())
             elif logits.dim() > target_data.dim() and target_data.dim() == 1:
                  if target_data.dtype != torch.long:
                      target_data = target_data.long()
@@ -669,22 +760,44 @@ class AdaptiveFramework(nn.Module):
             else:
                  loss = F.mse_loss(logits.float(), target_data.float())
             
+        # [V9.0] World Model Training & Predictive Surprise
+        if self.world_model and hasattr(self, '_last_fused_latent'):
+             fused_latent_t = self._last_fused_latent
+             
+             # If we have inputs from the PREVIOUS step, we can train the WM to predict CURRENT z
+             if hasattr(self, '_prev_wm_inputs') and self._prev_wm_inputs is not None:
+                  z_prev, a_prev = self._prev_wm_inputs
+                  
+                  # 1. Forward pass (with gradients) for the PREVIOUS prediction
+                  # This is now at Step T, predicting Step T using Step T-1 context
+                  z_pred_t = self.world_model(z_prev, a_prev)
+                  
+                  # 2. Compute surprise and loss relative to CURRENT actual latent
+                  surprise, wm_loss = self.world_model.compute_surprise(z_pred_t, fused_latent_t.detach())
+                  self._world_model_surprise = surprise.mean().item()
+                  
+                  # 3. Optimize World Model (Self-contained in this step)
+                  self.world_model_optimizer.zero_grad()
+                  (wm_loss * self.config.world_model_loss_weight).backward()
+                  self.world_model_optimizer.step()
+             
+             # Shift inputs for next training step
+             self._prev_wm_inputs = getattr(self, '_current_wm_inputs', None)
+
         # 3. [V8.0] Consciousness Observation (System 2)
         consciousness_metrics = {}
         if self.consciousness:
             # FIX: Pass logits directly, do not argmax here.
             # Consciousness module handles cross_entropy from logits.
-            y_pred_for_cons = logits 
+            y_pred_for_cons = pooled_logits if 'pooled_logits' in locals() else logits
                 
             # Observe and Think (Recursive Global Workspace)
-            # Use features if available, else inputs
+            # Use features if available, else fused latent, else None (don't use raw IDs)
             if features is not None:
                 cons_features = features.detach()
             elif hasattr(self, '_last_fused_latent') and self._last_fused_latent is not None:
                 # [V8.0] Use fused latent state for consciousness
                 cons_features = self._last_fused_latent.detach()
-            elif len(model_inputs) > 0 and isinstance(model_inputs[0], torch.Tensor):
-                cons_features = model_inputs[0].detach().float()
             else:
                 cons_features = None
             
@@ -695,10 +808,16 @@ class AdaptiveFramework(nn.Module):
             )
             consciousness_metrics = obs
             
-            # Apply "Focus" / Confusion
-            if 'confusion' in obs:
-                for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = self.config.learning_rate * (1.0 - 0.5 * obs['confusion'])
+            # Apply Plasticity (Learning Rate Multiplier)
+            # Use the multiplier from the emotional/metacognition system
+            plasticity = obs.get('learning_rate_multiplier', 1.0)
+            
+            # [V9.0] Inject Predictive Surprise into Plasticity
+            if hasattr(self, '_world_model_surprise'):
+                 plasticity *= (1.0 + self._world_model_surprise)
+            
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = self.config.learning_rate * plasticity
 
         # 4. Memory Regularization
         reg_loss = torch.tensor(0.0, device=self.device)
@@ -717,6 +836,10 @@ class AdaptiveFramework(nn.Module):
                 # Holographic
                 if hasattr(self.memory, 'holographic_memory') and self.memory.holographic_memory and features is not None:
                     self.memory.holographic_memory.add(snapshot, features.detach())
+                
+                # [V9.0] Graph Memory (Relational)
+                if hasattr(self.memory, 'graph_memory') and self.memory.graph_memory and features is not None:
+                    self.memory.graph_memory.add(snapshot, features.detach())
                     
                 # Replay Buffer
                 if hasattr(self.memory, 'replay_buffer') and self.memory.replay_buffer:
@@ -726,7 +849,8 @@ class AdaptiveFramework(nn.Module):
         total_loss = loss + reg_loss
         
         # 5. Backward Pass
-        total_loss.backward()
+        # Retain graph for meta-optimization if needed
+        total_loss.backward(retain_graph=len(self.meta_log_probs) > 0)
         
         # 6. [V8.0] Gradient Centralization
         if self.config.use_gradient_centralization:
@@ -742,7 +866,35 @@ class AdaptiveFramework(nn.Module):
         if self.memory:
             param_before = self.memory.before_step_snapshot()
             
+        # [V8.0] Sentient Meta-Optimization Loop (REINFORCE with Advantage)
+        # This module optimizes the IntrospectionEngine by treating its affine modifiers 
+        # as a policy that aims to maximize immediate loss reduction.
+        # Reward = (Previous Loss - Current Loss)
+        if self.meta_log_probs:
+            current_loss_val = loss.item()
+            if hasattr(self, '_last_loss_val'):
+                reward = self._last_loss_val - current_loss_val
+                
+                # Update reward baseline (moving average)
+                self.reward_baseline = 0.9 * self.reward_baseline + 0.1 * reward
+                advantage = reward - self.reward_baseline
+                
+                # REINFORCE update: Maximize Advantage * LogProb
+                meta_loss = -torch.stack(self.meta_log_probs).mean() * advantage
+                
+                self.meta_optimizer.zero_grad()
+                meta_loss.backward() 
+                self.meta_optimizer.step()
+                
+            self._last_loss_val = current_loss_val
+            self.meta_log_probs.clear()
+            self.current_modifiers = None # Reset for next forward
+
         self.optimizer.step()
+        
+        # [V8.0] Adapter Optimizer Step
+        if self.adapter_optimizer:
+            self.adapter_optimizer.step()
         
         # [V8.0] Lookahead Step
         if self.config.use_lookahead:
@@ -761,6 +913,13 @@ class AdaptiveFramework(nn.Module):
              
         if enable_dream: self.step_count += 1
             
+        # [V9.0] Periodic Neural Health Check & Autonomic Repair
+        if self.health_monitor and self.step_count % self.config.health_check_interval == 0:
+            report = self.health_monitor.check_vital_signs()
+            repairs = self.health_monitor.autonomic_repair(report)
+            if repairs > 0:
+                self.logger.info(f"[AUTONOMIC] Neural Health Stabilized ({repairs} repairs).")
+
         # [V8.0] Ensure all metrics for demo are present
         z_score = consciousness_metrics.get('surprise', 0.0)
         mode = self.meta_controller.current_mode if self.meta_controller else 'NORMAL'
@@ -921,7 +1080,17 @@ class AdaptiveFramework(nn.Module):
         self.logger.info(f"Checkpoint saved to {path}")
 
     def load_checkpoint(self, path: str):
-        ckpt = torch.load(path, map_location=self.device)
+        if not os.path.exists(path):
+             self.logger.warning(f"Checkpoint not found: {path}")
+             return
+             
+        # Allow loading complex objects (config, memory) by disabling weights_only restriction
+        try:
+            ckpt = torch.load(path, map_location=self.device, weights_only=False)
+        except TypeError:
+             # Fallback for older torch versions
+             ckpt = torch.load(path, map_location=self.device)
+             
         self.model.load_state_dict(ckpt['model_state'])
         self.introspection_engine.load_state_dict(ckpt['introspection'])
         self.optimizer.load_state_dict(ckpt['optimizer'])
