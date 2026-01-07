@@ -1,389 +1,100 @@
-# 🧠 MirrorMind: Complete Self-Learning Framework (v1.1.1 "Sentient")
-# A Comprehensive Tutorial with System 2 Thinking
+# 🧠 Getting Started with AirborneHRS V2.0.0
 
-This is your **complete, production-ready framework** for building self-improving AI models.
+AirborneHRS "Synthetic Intuition" is designed to be the simplest way to add State-of-the-Art cognitive capabilities to any PyTorch model.
 
-## What You Get
+## 📦 1. Installation
 
-✅ **3 Complete Core Modules** (ready to use):
-  1. `SelfLearningFramework.py` - Core learning engine
-  2. `AdvancedAdaptation.py` - Meta-learning & adaptation  
-  3. `AGITrainer.py` - Training pipeline
-  4. `Dashboard.py` - Monitoring & visualization
-
-✅ **Easy-to-Use API**:
-```python
-from AGITrainer import EasyTrainer
-
-# That's it! One line to create a trainer
-trainer = EasyTrainer()
-
-# Train on your data
-trainer.train(X, y, epochs=10)
-
-# Get predictions
-predictions = trainer.predict(X_test)
-```
-
-✅ **Production Features**:
-- Adaptive weight management
-- Curriculum learning
-- Dynamic learning rate scheduling
-- Gradient analysis & monitoring
-- Performance-based task selection
-- Complete checkpointing system
-- Real-time dashboard
-- Comprehensive logging
-- **System 2 Thinking (V8.0)**: Recursive reasoning for complex problems
-- **Consciousness Core (V8.0)**: Emotional dynamics and metacognition
-- **SOTA Benchmarks**: All 5 tests passed
-
-## Quick Navigation
-
-### For Quick Start (30 minutes)
-1. Read this file
-2. Look at `FRAMEWORK_README.md`
-3. Run the examples in AGITrainer.py
-
-### For Deep Dive (2-3 hours)
-1. Study `SelfLearningFramework.py` - understand the core
-2. Understand `AdvancedAdaptation.py` - learn the intelligence
-3. Explore `AGITrainer.py` - see how they integrate
-4. Check `Dashboard.py` - monitor your models
-
-### For Research (Full engagement)
-1. Read all components deeply
-2. Understand the math behind meta-learning
-3. Modify adaptation strategies
-4. Conduct ablation studies
-5. Publish results! 🚀
-
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    YOUR APPLICATION                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│          ┌─────────────────────────────────────┐           │
-│          │      EasyTrainer (Simple API)       │           │
-│          └──────────────┬──────────────────────┘           │
-│                         │                                   │
-│          ┌──────────────▼──────────────────┐               │
-│          │      AGITrainer                 │               │
-│          │  (Complete Pipeline)           │               │
-│          └──────────────┬──────────────────┘               │
-│                 ┌───────┼────────┐                         │
-│                 ▼       ▼        ▼                         │
-│          ┌──────────────────────────────────┐             │
-│          │ SelfLearningFramework            │             │
-│          │ ├─ Model                         │             │
-│          │ ├─ Weight Adaptation            │             │
-│          │ ├─ Feedback Collection          │             │
-│          │ └─ Checkpointing                │             │
-│          └──────────────┬───────────────────┘             │
-│                         │                                 │
-│          ┌──────────────▼──────────────────┐             │
-│          │ AdvancedAdaptation              │             │
-│          │ ├─ MAML Meta-Learning           │             │
-│          │ ├─ Gradient Analyzer            │             │
-│          │ ├─ Dynamic LR Scheduler         │             │
-│          │ ├─ Curriculum Learning          │             │
-│          │ └─ Task Selection               │             │
-│          └──────────────┬───────────────────┘             │
-│                         │                                 │
-│          ┌──────────────▼──────────────────┐             │
-│          │ Dashboard & Monitoring          │             │
-│          │ ├─ Real-time Metrics            │             │
-│          │ ├─ HTML Dashboard               │             │
-│          │ └─ Research Reports             │             │
-│          └──────────────────────────────────┘             │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Key Concepts
-
-### 1. **Self-Learning Loop**
-The core innovation: continuous improvement through feedback
-
-```
-1. Model makes prediction → Gets feedback → Analyzes performance
-   ↓
-2. Framework adapts weights/strategy → Model learns better
-   ↓  
-3. Repeat until convergence
-```
-
-### 2. **Stabilizer/Suppressor**
-The framework doesn't just train—it improves *how* the model trains:
-
-- **Monitors**: Loss trends, gradient health, learning efficiency
-- **Analyzes**: Detects plateaus, overfitting, underfitting
-- **Adapts**: Changes learning rate, task difficulty, weight updates
-- **Improves**: Makes training more efficient and robust
-
-### 3. **Meta-Learning**
-The model learns not just to solve tasks, but to learn better:
-
-```python
-# Inner loop: Adapt to a task
-adapt_model_to_task()
-
-# Outer loop: Improve the adaptation strategy
-improve_learning_strategy()
-```
-
-## Installation & Setup
-
-### Step 1: Install Dependencies
 ```bash
-pip install torch numpy tqdm tensorboard pathlib dataclasses logging
+pip install airbornehrs
 ```
 
-### Step 2: Import Modules
+## 🚀 2. The "3-Step" Cognitive Upgrade
+
+You do not need to rewrite your model. AirborneHRS wraps around it.
+
+### Step 1: Import the Framework
 ```python
-from SelfLearningFramework import SelfLearningFramework, FrameworkConfig
-from AdvancedAdaptation import MAMLAdaptor, GradientAnalyzer, DynamicLearningRateScheduler
-from AGITrainer import AGITrainer, EasyTrainer
-from Dashboard import MetricsTracker, DashboardGenerator
+import torch
+import torch.nn as nn
+from airbornehrs import AdaptiveFramework, AdaptiveFrameworkConfig
 ```
 
-### Step 3: Create and Train
-
-**Simple way (recommended for most users):**
+### Step 2: Define Your Standard Model
+This can be anything: a Transformer, a CNN, an LSTM, or a simple MLP.
 ```python
-trainer = EasyTrainer()
-trainer.train(X, y, epochs=10)
-predictions = trainer.predict(X_test)
+# Example: A simple perception network
+my_model = nn.Sequential(
+    nn.Linear(64, 128),
+    nn.ReLU(),
+    nn.Linear(128, 10) # 10 classes
+)
 ```
 
-**Advanced way (for researchers):**
+### Step 3: Wrap & Initialize
+Use the `production()` factory to automatically load the V2.0.0 SOTA defaults (World Model, MoE, Memory).
 ```python
-from SelfLearningFramework import FrameworkConfig
+# 1. Load SOTA Configuration
+config = AdaptiveFrameworkConfig.production()
 
-config = FrameworkConfig(
-    model_dim=256,
-    num_layers=8,
+# 2. Inject Cognitive Features
+# This wraps your model in a "Cognitive Shell" containing:
+# - World Model (Foresight)
+# - H-MoE (Sparse Computation)
+# - Neural Health Monitor (Self-Repair)
+agent = AdaptiveFramework(my_model, config)
+```
+
+## ⚡ 3. Training Loop
+
+Replace your standard `loss = criterion(out, target); loss.backward()` with the agent's `train_step`.
+
+```python
+inputs = torch.randn(32, 64)
+targets = torch.randint(0, 10, (32,))
+
+# The agent handles:
+# - Forward Pass (with internal prediction)
+# - Loss Calculation (Task Loss + Surprise Loss + Sparsity Penalty)
+# - Backpropagation
+# - Self-Healing Checks
+metrics = agent.train_step(inputs, target_data=targets)
+
+print(f"Loss: {metrics['loss']:.4f}")
+print(f"Predictive Surprise: {metrics.get('surprise', 0.0):.4f}")
+print(f"Active Memory Nodes: {len(agent.memory.graph_memory.nodes)}")
+```
+
+## 🎮 4. Real-Time Dashboard (Interactive)
+
+To see what your agent is "thinking" (its surprise levels, active experts, memory recall), run the dashboard in a separate terminal:
+
+```bash
+python -m airbornehrs --demo
+```
+
+## 🔧 Advanced Configuration
+
+If you want manual control over the cognitive features:
+
+```python
+config = AdaptiveFrameworkConfig(
+    # Core settings
+    model_dim=64,
     learning_rate=1e-3,
-    weight_adaptation_lr=1e-5,
-    evaluation_frequency=100
-)
-
-trainer = AGITrainer(config)
-summary = trainer.train(train_loader, val_loader, num_epochs=20)
-```
-
-## Example: Training Your First Model
-
-### Quick Example (5 lines)
-```python
-from AGITrainer import EasyTrainer
-import torch
-
-trainer = EasyTrainer()
-X = torch.randn(1000, 10, 128)
-y = torch.randn(1000, 10, 128)
-trainer.train(X, y, epochs=5)
-```
-
-### Complete Example (with monitoring)
-```python
-from AGITrainer import EasyTrainer
-from Dashboard import MetricsTracker, DashboardGenerator
-import torch
-
-# Create trainer
-trainer = EasyTrainer()
-
-# Your data
-X = torch.randn(1000, 10, 128)
-y = torch.randn(1000, 10, 128)
-
-# Train with monitoring
-summary = trainer.train(X, y, val_split=0.2, epochs=10)
-
-# Make predictions
-X_test = torch.randn(100, 10, 128)
-predictions = trainer.predict(X_test)
-
-# Show results
-print(f"Best train loss: {summary['best_train_loss']:.4f}")
-print(f"Best val loss: {summary['best_val_loss']:.4f}")
-print(f"Predictions shape: {predictions.shape}")
-```
-
-## Understanding the Components
-
-### SelfLearningFramework
-**What it does**: Manages the core learning process
-
-**Key classes**:
-- `FrameworkConfig` - Configuration
-- `SelfLearningModel` - Model with introspection
-- `AdaptiveWeightManager` - Adapts weights based on performance
-- `FeedbackCollector` - Collects learning signals
-- `SelfLearningFramework` - Orchestrates everything
-
-**When to use**: Always—this is the foundation
-
-### AdvancedAdaptation
-**What it does**: Adds intelligent learning strategies
-
-**Key classes**:
-- `MAMLAdaptor` - Meta-learning (learn to learn)
-- `GradientAnalyzer` - Understand gradient dynamics
-- `DynamicLearningRateScheduler` - Auto-adjust learning rate
-- `CurriculumLearningStrategy` - Gradually increase difficulty
-- `PerformanceAnalyzer` - Detect learning issues
-- `AdaptiveTaskSelector` - Focus on hard tasks
-
-**When to use**: When you want advanced adaptation
-
-### AGITrainer
-**What it does**: Complete training pipeline
-
-**Key classes**:
-- `Environment` - Base environment interface
-- `AGITrainer` - Full orchestrator
-- `EasyTrainer` - Simple API
-
-**When to use**: For actual training runs
-
-### Dashboard
-**What it does**: Monitoring and visualization
-
-**Key classes**:
-- `MetricsTracker` - Track metrics
-- `DashboardGenerator` - Create HTML dashboard
-- `ReportGenerator` - Generate reports
-
-**When to use**: For monitoring progress
-
-## Common Patterns
-
-### Pattern 1: Simple Training
-```python
-trainer = EasyTrainer()
-trainer.train(X, y, epochs=10)
-predictions = trainer.predict(X_test)
-```
-
-### Pattern 2: Custom Config
-```python
-config = FrameworkConfig(
-    model_dim=512,
-    num_layers=12,
-    learning_rate=5e-4
-)
-trainer = AGITrainer(config)
-```
-
-### Pattern 3: With Monitoring
-```python
-tracker = MetricsTracker()
-trainer = AGITrainer(config)
-
-for epoch in range(10):
-    metrics = trainer.train_epoch(train_loader)
-    tracker.add_metric(
-        training_loss=metrics['loss'],
-        learning_rate=current_lr
-    )
-
-dashboard = DashboardGenerator(tracker)
-html = dashboard.generate_html()
-```
-
-### Pattern 4: Custom Environment
-```python
-from AGITrainer import Environment
-
-class MyEnv(Environment):
-    def reset(self):
-        # Your reset logic
-        pass
     
-    def step(self, action):
-        # Your step logic
-        return obs, reward, done
-
-trainer = AGITrainer(config, environment=MyEnv())
-```
-
-## Troubleshooting
-
-### Problem: High Loss / Not Converging
-**Solution**:
-```python
-# Increase learning rate or reduce batch size
-config = FrameworkConfig(
-    learning_rate=1e-2,  # Increase
-    batch_size=16        # Decrease
+    # Feature Toggles
+    enable_world_model=True,    # Turn on/off Foresight
+    use_hierarchical_moe=True,  # Turn on/off Sparse Experts
+    use_graph_memory=True,      # Turn on/off Relational Memory
+    enable_health_monitor=True, # Turn on/off Self-Repair
+    
+    # Hyperparameters
+    world_model_loss_weight=0.1,
+    num_moe_domains=2,
+    num_moe_experts=4
 )
-
-# Or enable adaptive strategies
-trainer = AGITrainer(config)
-# The framework will auto-adapt!
 ```
 
-### Problem: Training Very Slow
-**Solution**:
-```python
-# Reduce model size or use GPU
-config = FrameworkConfig(
-    model_dim=128,       # Reduce from 256
-    num_layers=4         # Reduce from 8
-)
-device = torch.device('cuda')  # Use GPU
-```
-
-### Problem: Overfitting
-**Solution**:
-```python
-# Enable curriculum learning
-from AdvancedAdaptation import CurriculumLearningStrategy
-
-curriculum = CurriculumLearningStrategy(config)
-# Gradually increase task difficulty
-# The framework handles this automatically!
-```
-
-## Next Steps
-
-1. **Read** `FRAMEWORK_README.md` for comprehensive documentation
-2. **Study** the source code in each module
-3. **Try** the examples in the docstrings
-4. **Experiment** with different configurations
-5. **Share** your results and improvements!
-
-## Citation
-
-If you use this framework, please cite:
-
-```bibtex
-@software{mirrormind2026,
-  title={MirrorMind V8.0: Self-Learning Sentient Framework},
-  author={Singh, Suryaansh Prithvijit},
-  year={2026},
-  version={1.1.1},
-  url={https://github.com/Ultron09/Mirror_mind}
-}
-```
-
-## Support
-
-- 📖 **Documentation**: Read FRAMEWORK_README.md
-- 💬 **Questions**: Check the docstrings in source files
-- 🐛 **Issues**: File a GitHub issue
-- 💡 **Ideas**: Start a discussion
-
-## License
-
-MIT License - Use freely for research and commercial purposes
-
----
-
-**Happy Learning! 🧠✨**
-
-The future of AI is self-improving models. Start building it today!
+## 📚 Next Steps
+- **Technical Deep Dive**: Understand how the World Model works in [Synthetic Intuition Guide](../technical/SYNTHETIC_INTUITION.md).
+- **API Reference**: See [full class documentation](../API_REFERENCE.md).
