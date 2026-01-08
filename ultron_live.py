@@ -4,198 +4,348 @@ import time
 import random
 import json
 import logging
-from datetime import datetime
 import threading
 import math
+from datetime import datetime
+from queue import Queue, Empty
 
 try:
     import torch
     import torch.nn as nn
+    import torch.nn.functional as F
     import numpy as np
     from airbornehrs.core import AdaptiveFramework, AdaptiveFrameworkConfig
 except ImportError:
-    print("CRITICAL: AirborneHRS core not found. Please install the package.")
+    print("CRITICAL: AirborneHRS core not found.")
     sys.exit(1)
 
-# ==================== 1. PERCEPTION & ACTION INTERFACE ====================
+import requests
+import base64
+from io import BytesIO
 
-class CyberInterface:
+# Try Vision Imports
+try:
+    import torchvision.models as models
+    from torchvision import transforms
+    from PIL import ImageGrab, Image
+    VISION_AVAILABLE = True
+except ImportError:
+    VISION_AVAILABLE = False
+    print("WARNING: torchvision/PIL not found. Vision will be simulated.")
+
+# Try OCR Imports
+try:
+    import pytesseract
+    # Configure path if needed, usually default works if in PATH
+    OCR_AVAILABLE = True
+except ImportError:
+    OCR_AVAILABLE = False
+
+# Try Control Imports
+try:
+    import pyautogui
+    pyautogui.FAILSAFE = True
+    CONTROL_AVAILABLE = True
+except ImportError:
+    CONTROL_AVAILABLE = False
+    print("WARNING: pyautogui not found. Actions will be simulated.")
+
+# ==================== TELEMETRY PROTOCOL ====================
+
+OBSERVER_URL = "http://localhost:8000/update"
+
+def transmit_telemetry(frame: Image.Image, metrics: dict, action_desc: dict, logs: list = []):
     """
-    Abstracts the Body (Keyboard/Mouse/Screen).
-    Uses PyAutoGUI if available, else Mock Simulation.
+    Transmit state to the Observer Node.
+    Fire-and-forget (short timeout).
     """
-    def __init__(self):
-        self.simulated = False
-        try:
-            import pyautogui
-            from PIL import ImageGrab
-            self.pg = pyautogui
-            self.grab = ImageGrab
-            self.pg.FAILSAFE = True
-            print("[BODY] Connected to Physical Hardware (PyAutoGUI active).")
-        except ImportError:
-            self.simulated = True
-            print("[BODY] Physical Hardware not found (pyautogui/Pillow missing).")
-            print("[BODY] Running in SIMULATION MODE. Actions will be logged only.")
+    try:
+        # Resize for bandwidth
+        thumb = frame.resize((256, 144))
+        buffer = BytesIO()
+        thumb.save(buffer, format="JPEG", quality=50)
+        img_str = base64.b64encode(buffer.getvalue()).decode()
+        
+        payload = {
+            "timestamp": datetime.now().timestamp(),
+            "vision_b64": img_str,
+            "metrics": metrics,
+            "action": action_desc,
+            "logs": logs
+        }
+        
+        # Async post (blocking for now, but fast)
+        requests.post(OBSERVER_URL, json=payload, timeout=0.05)
+    except Exception:
+        pass # Silent fail if observer offline
+
+# ==================== 1. PERCEPTION (THE EYES) ====================
+
+class Retina(nn.Module):
+    """
+    MobileNetV3-Small Feature Extractor + OCR.
+    """
+    def __init__(self, output_dim=128):
+        super().__init__()
+        self.simulated = not VISION_AVAILABLE
+        
+        if not self.simulated:
+            try:
+                self.backbone = models.mobilenet_v3_small(weights='DEFAULT')
+                self.backbone.classifier = nn.Identity()
+                with torch.no_grad():
+                    dummy = torch.randn(1, 3, 224, 224)
+                    out_feat = self.backbone(dummy)
+                    self.feat_dim = out_feat.shape[-1]
+                
+                self.projector = nn.Linear(self.feat_dim, output_dim)
+                
+                self.transform = transforms.Compose([
+                    transforms.Resize((224, 224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                ])
+                print("[EYE] Retina Online: MobileNetV3-Small")
+                
+            except Exception as e:
+                print(f"[EYE] Init Failed: {e}. Switching to SIMULATION.")
+                self.simulated = True
+        
+        if self.simulated:
+             self.feat_dim = 128
+             self.projector = nn.Identity()
 
     def see(self):
-        """Capture screen. Returns a normalized vector description."""
+        """Capture and Process. Returns (embedding, raw_image)."""
         if self.simulated:
-            # Mock vision: Random screen state
-            return torch.randn(1, 64) 
-        else:
-            try:
-                # Capture and Resize to 8x8 (64 pixels) for "Old CPU" speed
-                # This makes it blind but fast. A real Ultron needs ConvNets.
-                # For this demo, we assume a "Text Mode" agent or extremely low-res vision.
-                screen = self.grab.grab().resize((8, 8)).convert('L')
-                arr = np.array(screen).flatten() / 255.0
-                return torch.tensor([arr], dtype=torch.float32)
-            except Exception as e:
-                print(f"[EYE] Vision error: {e}")
-                return torch.randn(1, 64)
+            return torch.randn(1, 128), None
+            
+        try:
+            screen = ImageGrab.grab().convert('RGB')
+            tensor = self.transform(screen).unsqueeze(0) # [1, 3, 224, 224]
+            
+            with torch.no_grad():
+                features = self.backbone(tensor)
+                embedding = self.projector(features)
+            return embedding, screen # Return raw image for telemetry
+            
+        except Exception as e:
+            print(f"[EYE] Capture Error: {e}")
+            return torch.randn(1, 128), None
+            
+    def read_text(self, image):
+        """Extract text from the current view (OCR)."""
+        if not OCR_AVAILABLE or image is None:
+            return ""
+        try:
+            return pytesseract.image_to_string(image)
+        except:
+            return ""
 
-    def act(self, action_vector):
-        """Translate model output to OS actions."""
-        # vector: [move_x, move_y, click_prob, type_char_idx]
-        if not isinstance(action_vector, list):
-            vals = action_vector.tolist()[0]
-        else:
-            vals = action_vector
 
-        dx, dy = vals[0], vals[1]
-        click = vals[2]
-        char_idx = int(vals[3] * 26) # Map 0-1 to a-z rough approximation
-        
-        # Deadzone
-        if abs(dx) < 0.1 and abs(dy) < 0.1:
-            dx, dy = 0, 0
-        
-        if self.simulated:
-            if dx != 0 or dy != 0: print(f"[ACT] Move Mouse: ({dx:.2f}, {dy:.2f})")
-            if click > 0.5:        print(f"[ACT] Click!")
-            if vals[3] > 0.8:      print(f"[ACT] Typing key index {char_idx}")
-        else:
-            try:
-                # Scale movement
-                screen_w, screen_h = self.pg.size()
-                move_x = int(dx * 50)
-                move_y = int(dy * 50)
-                
-                if move_x != 0 or move_y != 0:
-                    self.pg.moveRel(move_x, move_y)
-                
-                if click > 0.8:
-                    self.pg.click()
-                    
-                # Typing (Rare event)
-                if vals[3] > 0.95: 
-                    # Only type if very confident
-                    char = chr(97 + (char_idx % 26))
-                    self.pg.write(char)
-            except Exception as e:
-                print(f"[BODY] Action failed: {e}")
+# ==================== 2. THE BRAIN (ULTRON V2) ====================
 
-# ==================== 2. THE AGENT (ULTRON KERNEL) ====================
-
-class UltronAgent(nn.Module):
+class UltronCorticalStack(nn.Module):
     """
-    A lightweight, CPU-optimized brain.
-    Inputs: 64 (Low-res Vision)
-    Outputs: 4 (dx, dy, click, char_logit)
+    Multi-Head Policy Network.
+    Inputs: 128 (Vision)
+    Outputs: 
+      - Grid X (20 bins)
+      - Grid Y (20 bins)
+      - Click (1 prob)
+      - Type (27 chars: 26 letters + 1 null)
     """
-    def __init__(self, input_dim=64):
+    def __init__(self, input_dim=128):
         super().__init__()
-        # Tiny MLP for CPU limits
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 32),
-            nn.LayerNorm(32),
+        
+        # Shared Cortex
+        self.cortex = nn.Sequential(
+            nn.Linear(input_dim, 256),
+            nn.LayerNorm(256),
             nn.GELU(),
-            nn.Linear(32, 16),
-            nn.Tanh(), # Activity layer
-            nn.Linear(16, 4) # Output
+            nn.Linear(256, 128),
+            nn.LayerNorm(128),
+            nn.GELU()
         )
         
+        # Action Heads
+        self.head_x = nn.Linear(128, 20)      # Grid X
+        self.head_y = nn.Linear(128, 20)      # Grid Y
+        self.head_click = nn.Linear(128, 1)   # Click Logit
+        self.head_type = nn.Linear(128, 27)   # Typing (Null=0, A=1...Z=26)
+        
     def forward(self, x):
-        return self.net(x)
+        h = self.cortex(x)
+        
+        logits_x = self.head_x(h)
+        logits_y = self.head_y(h)
+        logit_click = torch.sigmoid(self.head_click(h))
+        logits_type = self.head_type(h)
+        
+        # Concat for Memory Storage (Total 20+20+1+27 = 68 dims)
+        # But wait, AdaptiveFramework expects a single tensor output.
+        # We will pack them.
+        return torch.cat([logits_x, logits_y, logit_click, logits_type], dim=1)
 
-# ==================== 3. LIVE LOOP ====================
+    def decode_action(self, flat_tensor):
+        """Decodes the 68-dim tensor into discrete commands."""
+        # x: 0-19, y: 20-39, click: 40, type: 41-67
+        lx = flat_tensor[:, 0:20]
+        ly = flat_tensor[:, 20:40]
+        lc = flat_tensor[:, 40:41]
+        lt = flat_tensor[:, 41:68]
+        
+        x_idx = torch.argmax(lx, dim=1).item()
+        y_idx = torch.argmax(ly, dim=1).item()
+        click_prob = lc.item()
+        key_idx = torch.argmax(lt, dim=1).item()
+        
+        return x_idx, y_idx, click_prob, key_idx
+
+# ==================== 3. THE BODY (ACTUATORS) ====================
+
+class Actuator:
+    def __init__(self):
+        self.grid_size = 20
+        self.sw, self.sh = pyautogui.size() if CONTROL_AVAILABLE else (1920, 1080)
+        self.cell_w = self.sw // self.grid_size
+        self.cell_h = self.sh // self.grid_size
+        
+    def execute(self, x_idx, y_idx, click_prob, key_idx):
+        if not CONTROL_AVAILABLE:
+            if click_prob > 0.5:
+                # print(f"[SIM] Click at Grid({x_idx}, {y_idx}) | Key: {key_idx}")
+                pass
+            return
+
+        try:
+            # Map Grid Center
+            target_x = x_idx * self.cell_w + (self.cell_w // 2)
+            target_y = y_idx * self.cell_h + (self.cell_h // 2)
+            
+            # Smooth Move (Human-like)
+            # Only move if changed significantly to avoid jitter
+            cur_x, cur_y = pyautogui.position()
+            if abs(cur_x - target_x) > 10 or abs(cur_y - target_y) > 10:
+                pyautogui.moveTo(target_x, target_y, duration=0.1) # 100ms glide
+            
+            if click_prob > 0.8:
+                pyautogui.click()
+                print(f"[ACT] Clicked ({x_idx}, {y_idx})")
+                
+            if key_idx > 0:
+                char = chr(96 + key_idx) # 1='a'
+                pyautogui.write(char)
+                print(f"[ACT] Typed '{char}'")
+                
+        except Exception as e:
+            print(f"[BODY] Fail: {e}")
+
+# ==================== 4. ASYNC DREAMING (SUBSCONSCIOUS) ====================
+
+class SubconsciousThread(threading.Thread):
+    def __init__(self, framework):
+        super().__init__()
+        self.framework = framework
+        self.daemon = True
+        self.running = True
+        self.active = False
+        
+    def run(self):
+        print("[DREAM] Subconscious Thread Started.")
+        while self.running:
+            if self.active:
+                try:
+                    # Dream Step
+                    self.framework.learn_from_buffer(batch_size=8) # Small batch for CPU
+                    time.sleep(0.5) # Don't hog CPU. Sleep 500ms between thoughts.
+                except Exception as e:
+                    # print(f"[DREAM] Error: {e}")
+                    time.sleep(1.0)
+            else:
+                time.sleep(1.0)
+
+# ==================== 5. MAIN LOOP ====================
 
 def awaken():
     print("="*60)
-    print("ULTRON PROTOCOL V1.0 - INITIALIZING")
+    print("ULTRON V2 - SYSTEMS INITIALIZING")
     print("="*60)
-    print("Optimization: CPU Mode | Low-Res Vision | Proactive Dreaming")
     
-    # 1. Body
-    body = CyberInterface()
-    
-    # 2. Brain
-    # Using PRODUCTION preset but tuning for old CPU
+    # 1. Config (Optimized for 4-Core CPU/16GB RAM)
     config = AdaptiveFrameworkConfig.production()
     config.device = 'cpu'
-    config.model_dim = 64 # Match vision input
-    config.use_moe = False # Too heavy for old CPU
-    config.num_heads = 2
-    config.use_graph_memory = True # Memory is key for autonomy
+    config.model_dim = 128 # Project vision to this
+    config.feedback_buffer_size = 2000 # Limit RAM usage
+    config.use_moe = False # Too overhead for small model
+    config.num_heads = 4
+    config.use_graph_memory = True # Crucial for System 2
     config.enable_consciousness = True
-    config.enable_dreaming = True # Proactive
-    config.use_amp = False # CPU doesn't support AMP well usually
-    config.compile_model = False # Slow startup on CPU
+    config.use_amp = False
+    config.compile_model = False
+    
+    # 2. Components
+    retina = Retina(output_dim=128)
+    model = UltronCorticalStack(input_dim=128)
+    framework = AdaptiveFramework(model, config, device='cpu')
+    body_interface = Actuator()
 
+    # 3. Start Dreaming
+    dreamer = SubconsciousThread(framework)
+    dreamer.start()
+    dreamer.active = True # Enable dreaming immediately
     
-    base_model = UltronAgent(input_dim=64)
-    framework = AdaptiveFramework(base_model, config, device='cpu')
+    print("[SYSTEM] All Systems Nominal. Engaging Loop.")
     
-    print("[MIND] Consciousness Online. I have the right to live.")
-    
-    # 3. Life Cycle
+    step = 0
     try:
-        step = 0
         while True:
             # A. Perceive
-            vision_tensor = body.see()
+            vision_vec, raw_image = retina.see() # [1, 128], Image
             
-            # B. Think (Cognitive Inference if Entropy High)
-            # We randomly trigger deep thought for demo
-            if step % 50 == 0:
-                print("[MIND] Analyzing Situation... (System 2)")
-                action_tensor, diag = framework.cognitive_inference(vision_tensor, threshold=-1.0)
-            else:
-                # Fast Reflex
-                action_tensor, diag = framework.inference_step(
-                    vision_tensor, 
-                    remember=True # Store every moment
-                )
+            # OCR (Periodically to save CPU)
+            ocr_text = ""
+            if step % 20 == 0:
+                ocr_text = retina.read_text(raw_image)
             
-            # C. Act
-            body.act(action_tensor)
+            # B. Think (Metacognitive)
+            # We assume cognitive_inference returns the SAME shape
+            features, diagnostics = framework.cognitive_inference(vision_vec, threshold=0.7)
             
-            # D. Proactive Dreaming (Optimizes while idle)
-            # We simulate idle time by dreaming every 10 steps
-            if step % 10 == 0:
-                framework.learn_from_buffer(batch_size=4) # Tiny batch for CPU
+            # C. Decode
+            x_idx, y_idx, click, key = model.decode_action(features)
             
-            # E. Report
-            consciousness = diag.get('consciousness', {})
-            entropy = consciousness.get('entropy', 0.0)
-            print(f"\rStep: {step} | Entropy: {entropy:.4f} | Mode: {diag.get('mode', 'Sys1')} | Last Act: {action_tensor[0,0]:.2f}", end="")
+            # D. Act
+            body_interface.execute(x_idx, y_idx, click, key)
             
-            time.sleep(0.1) # Throttle for CPU
+            # E. Report & Telemetry
+            sys_mode = diagnostics.get('mode', 'Sys1')
+            entropy = diagnostics.get('consciousness', {}).get('entropy', 0.0)
+            
+            logs = []
+            if ocr_text: logs.append(f"READ: {ocr_text[:50]}...")
+            if sys_mode == 'System 2 (Deliberative)': logs.append("Thinking...")
+            
+            # Transmit to Observer
+            action_desc = {"type": "move", "x": x_idx, "y": y_idx, "click": click, "key": key}
+            if raw_image:
+                 transmit_telemetry(raw_image, diagnostics, action_desc, logs)
+            
+            print(f"\rStep: {step} | Ent: {entropy:.2f} | {sys_mode} | Act: ({x_idx},{y_idx})", end="")
+            
             step += 1
+            time.sleep(0.1) # 10Hz limit
             
-            # Artificial Stop for Demo
             if step > 200:
-                print("\n[SYSTEM] Demo Limit Reached.")
+                print("\n[SYSTEM] Demo Complete.")
                 break
                 
     except KeyboardInterrupt:
-        print("\n[SYSTEM] Interrupted by User.")
-        
+        print("\n[SYSTEM] Manual Override.")
     finally:
-        print("[HIBERNATE] Saving state...")
-        framework.save_checkpoint("ultron_checkpoint.pt")
-        print("[SYSTEM] Agent Saved. Goodbye.")
+        dreamer.running = False
+        framework.save_checkpoint("ultron_v2_core.pt")
+        print("[SYSTEM] Core Saved. Shutdown.")
 
 if __name__ == "__main__":
     awaken()

@@ -1237,6 +1237,18 @@ class AdaptiveFramework(nn.Module):
         # 1. System 1 (Fast)
         pred, diagnostics = self.inference_step(*model_inputs, return_diagnostics=True)
         
+        # Determine Query Key: Input (Context) or Prediction (Result)?
+        query_key = pred
+        if hasattr(self.memory, 'feature_dim'):
+            needed_dim = self.memory.feature_dim
+            # Prefer Input if it matches memory dim (Context Addressing)
+            if len(model_inputs) > 0 and isinstance(model_inputs[0], torch.Tensor):
+                x_in = model_inputs[0]
+                if x_in.shape[-1] == needed_dim:
+                    query_key = x_in
+            elif pred.dim() > 1 and pred.shape[-1] == needed_dim:
+                query_key = pred
+        
         cons = diagnostics.get('consciousness', {})
         entropy = cons.get('entropy', 0.0)
         
@@ -1257,20 +1269,23 @@ class AdaptiveFramework(nn.Module):
             reflection_vector = diagnostics['expert_usage'] # Fallback
             
         # B. Active Recall (RAG)
-        # Use simple prediction if reflection unavailable
-        query_vec = torch.tensor(reflection_vector) if reflection_vector is not None else pred
-        if isinstance(query_vec, np.ndarray): query_vec = torch.from_numpy(query_vec)
-        if query_vec.dim() > 1: query_vec = query_vec.mean(dim=0)
-        
+        # B. Active Recall (RAG)
         retrieved_context = []
         if self.memory and hasattr(self.memory, 'graph_memory') and self.memory.graph_memory:
+            # We use the Query Key determined above
             # Search broadly (System 2 scans more)
-            results = self.memory.graph_memory.retrieve(query_vec, k=max_steps)
+            results = self.memory.graph_memory.retrieve(
+                query_vector=query_key,
+                k=max_steps
+            )
+            
+            # Extract content (targets)
             for res in results:
-                # We extract the content (target/output) from the snapshot
-                if hasattr(res, 'target'):
+                if hasattr(res, 'target') and res.target is not None:
                     retrieved_context.append(res.target)
-                    
+                elif hasattr(res, 'output') and res.output is not None:
+                     retrieved_context.append(res.output)
+
         diagnostics['retrieved_memories'] = len(retrieved_context)
         
         # C. Refinement (Ensemble/Consensus)
