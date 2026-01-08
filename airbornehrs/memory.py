@@ -185,53 +185,102 @@ class MemoryNode:
 
 class RelationalGraphMemory(nn.Module):
     """
-    [V9.0] Graph-Based Episodic Memory.
-    Stores events as nodes and computes relational links using feature similarity.
-    Enables 'Analogical Reasoning' by traversing the memory graph.
+    [V9.0] Graph-Based Relational Memory with IVF Indexing.
+    Uses K-Means clustering to partition the graph for O(sqrt(N)) retrieval.
     """
-    def __init__(self, feature_dim=256, capacity=1000, link_threshold=0.85):
+    def __init__(self, feature_dim=256, capacity=1000, link_threshold=0.85, num_clusters=20):
         super().__init__()
         self.feature_dim = feature_dim
         self.capacity = capacity
         self.link_threshold = link_threshold
         self.nodes: List[MemoryNode] = []
         self.logger = logging.getLogger("RelationalGraphMemory")
+        
+        # IVF Indexing
+        self.num_clusters = num_clusters
+        self.centroids = torch.randn(num_clusters, feature_dim)
+        self.clusters = {i: [] for i in range(num_clusters)} # ClusterIdx -> List[NodeIndices]
+        self.node_to_cluster = {} # NodeIdx -> ClusterIdx
+        self.initialized = False
 
     def add(self, snapshot, feature_vector: torch.Tensor):
         if feature_vector is None: return
         
-        new_node = MemoryNode(snapshot, feature_vector, datetime.datetime.now().timestamp())
+        fv = feature_vector.detach().cpu()
+        if fv.dim() > 1: fv = fv.mean(dim=0)
         
-        # 1. Compute Relational Links (Similarity to existing nodes)
-        if self.nodes:
-            # Vectorized similarity compute
-            all_features = torch.stack([n.feature_vector for n in self.nodes])
-            # Cosine similarity
-            sim = F.cosine_similarity(new_node.feature_vector.unsqueeze(0), all_features)
+        if not self.initialized:
+            self.centroids = self.centroids.to(fv.device)
+            self.initialized = True
+            
+        new_node = MemoryNode(snapshot, fv, datetime.datetime.now().timestamp())
+        self.nodes.append(new_node)
+        new_node_idx = len(self.nodes) - 1
+        
+        # 1. IVF Indexing: Assign to Cluster
+        dists = torch.norm(self.centroids - fv, dim=1)
+        cluster_idx = torch.argmin(dists).item()
+        
+        # Update Centroid (Online K-Means)
+        self.centroids[cluster_idx] = 0.99 * self.centroids[cluster_idx] + 0.01 * fv
+        
+        self.clusters[cluster_idx].append(new_node_idx)
+        self.node_to_cluster[new_node_idx] = cluster_idx
+        
+        # 2. Compute Relational Links (Optimized: Scan only own + nearby clusters)
+        # Find top-2 clusters to check for neighbors
+        _, nearby_clusters = torch.topk(dists, k=min(2, self.num_clusters), largest=False)
+        candidate_indices = []
+        for c_idx in nearby_clusters:
+            # Only check OLDER nodes to avoid self-loop if strict inequality is needed? 
+            # Actually self-loop is fine but similarity to self is 1.0. 
+            # We usually skip self.
+            for idx in self.clusters[c_idx.item()]:
+                if idx != new_node_idx:
+                    candidate_indices.append(idx)
+            
+        if candidate_indices:
+            # Vectorized similarity compute on Candidates ONLY
+            candidate_features = torch.stack([self.nodes[i].feature_vector for i in candidate_indices])
+            sim = F.cosine_similarity(fv.unsqueeze(0), candidate_features)
             
             # Find nodes above threshold
             indices = (sim >= self.link_threshold).nonzero(as_tuple=True)[0]
             for idx in indices:
-                idx = idx.item()
+                target_node_idx = candidate_indices[idx.item()]
                 weight = sim[idx].item()
                 # Bidirectional Link
-                new_node.links.append((idx, weight))
-                self.nodes[idx].links.append((len(self.nodes), weight))
+                new_node.links.append((target_node_idx, weight))
+                self.nodes[target_node_idx].links.append((new_node_idx, weight))
         
-        # 2. Add node
-        self.nodes.append(new_node)
-        
-        # 3. Capacity Management
+        # 3. Capacity Management (Prune AFTER adding)
         if len(self.nodes) > self.capacity:
             self._prune_memory()
 
     def _prune_memory(self):
-        """Remove the oldest or least-linked node."""
-        # Simple FIFO for now, but could be 'Least Linked'
-        removed_idx = 0
+        """Remove the oldest node."""
+        removed_idx = 0 # FIFO
         self.nodes.pop(removed_idx)
         
-        # Re-index all links (O(N*E) but N is small)
+        # Update Index
+        c_idx = self.node_to_cluster.pop(removed_idx)
+        if removed_idx in self.clusters[c_idx]:
+            self.clusters[c_idx].remove(removed_idx)
+            
+        # Shift indices in maps (Expensive but rare due to FIFO)
+        # Rebuilding index might be cleaner, but for now we just shift
+        # This is strictly for the Demo limit. Production would use Circular Buffer.
+        new_clusters = {i: [] for i in range(self.num_clusters)}
+        new_map = {}
+        for old_i, c in self.node_to_cluster.items():
+            new_i = old_i - 1
+            new_map[new_i] = c
+            new_clusters[c].append(new_i)
+        
+        self.clusters = new_clusters
+        self.node_to_cluster = new_map
+
+        # Re-index all links
         for node in self.nodes:
             new_links = []
             for neighbor_idx, weight in node.links:
@@ -242,28 +291,40 @@ class RelationalGraphMemory(nn.Module):
 
     def retrieve(self, query_vector: torch.Tensor, k: int = 5) -> List[Any]:
         """
-        Associative Retrieval:
-        1. Find most similar node.
-        2. Return linked neighbors (analogies).
+        Associative Retrieval using IVF Index.
         """
         if not self.nodes or query_vector is None: return []
         
         qv = query_vector.detach().cpu()
         if qv.dim() > 1: qv = qv.mean(dim=0)
         
-        # 1. Direct Retrieval
-        all_features = torch.stack([n.feature_vector for n in self.nodes])
-        sim = F.cosine_similarity(qv.unsqueeze(0), all_features)
+        # 1. Find Search Space (Top-3 clusters)
+        dists = torch.norm(self.centroids - qv, dim=1)
+        _, top_clusters = torch.topk(dists, k=min(3, self.num_clusters), largest=False)
         
-        top_val, top_idx = torch.topk(sim, k=min(k, len(self.nodes)))
+        candidate_indices = []
+        for c_idx in top_clusters:
+            candidate_indices.extend(self.clusters[c_idx.item()])
+            
+        if not candidate_indices: return []
+        
+        # 2. Direct Retrieval on Candidates
+        candidate_features = torch.stack([self.nodes[i].feature_vector for i in candidate_indices])
+        sim = F.cosine_similarity(qv.unsqueeze(0), candidate_features)
+        
+        # Be careful mapping back to global indices
+        # sim is [len(candidates)]
+        top_val, top_k_local = torch.topk(sim, k=min(k, len(candidate_indices)))
         
         results = []
-        for idx in top_idx:
-            node = self.nodes[idx.item()]
+        for local_idx in top_k_local:
+            global_idx = candidate_indices[local_idx.item()]
+            node = self.nodes[global_idx]
             results.append(node.snapshot)
-            # 2. Level-1 Associative Retrieval (Links)
-            for neighbor_idx, _ in node.links[:2]: # Top 2 neighbors per hit
-                results.append(self.nodes[neighbor_idx].snapshot)
+            # Level-1 Associative
+            for neighbor_idx, _ in node.links[:2]:
+                if neighbor_idx < len(self.nodes):
+                    results.append(self.nodes[neighbor_idx].snapshot)
                 
         return results[:k]
 
@@ -283,10 +344,12 @@ class UnifiedMemoryHandler:
                  use_ogd: bool = False,
                  use_holographic: bool = True,
                  use_graph_memory: bool = False,
-                 graph_threshold: float = 0.85):
+                 graph_threshold: float = 0.85,
+                 feature_dim: int = 256):
         
         self.model = model
         self.method = method
+        self.feature_dim = feature_dim
         self.si_lambda = si_lambda
         self.si_xi = si_xi
         self.ewc_lambda = ewc_lambda
@@ -300,10 +363,10 @@ class UnifiedMemoryHandler:
         self.projector = OrthogonalProjector(next(model.parameters()).device) if use_ogd else None
         
         # Holographic Memory (V8.0)
-        self.holographic_memory = HolographicAssociativeMemory() if use_holographic else None
+        self.holographic_memory = HolographicAssociativeMemory(feature_dim=feature_dim) if use_holographic else None
         
         # [V9.0] Graph-Based Relational Memory
-        self.graph_memory = RelationalGraphMemory(link_threshold=graph_threshold) if use_graph_memory else None
+        self.graph_memory = RelationalGraphMemory(feature_dim=feature_dim, link_threshold=graph_threshold) if use_graph_memory else None
         
         # SI state (per-parameter accumulators)
         self.omega_accum = {

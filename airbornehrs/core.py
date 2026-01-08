@@ -401,7 +401,8 @@ class AdaptiveFramework(nn.Module):
             ewc_lambda=0.4,
             consolidation_criterion=getattr(config, 'consolidation_criterion', 'hybrid'),
             use_graph_memory=getattr(config, 'use_graph_memory', False),
-            graph_threshold=getattr(config, 'graph_memory_threshold', 0.85)
+            graph_threshold=getattr(config, 'graph_memory_threshold', 0.85),
+            feature_dim=config.model_dim
         )
         self.logger.info(f"[BRAIN] Unified Memory System Online ({config.memory_type}, Graph={config.use_graph_memory})")
         
@@ -962,6 +963,7 @@ class AdaptiveFramework(nn.Module):
                 )
                 
             if not samples:
+                print("DEBUG: No samples retrieved.")
                 continue
                 
             # --- New Batching Logic for Multi-Input Models ---
@@ -978,6 +980,7 @@ class AdaptiveFramework(nn.Module):
                 batch_targets = torch.cat([s.target.to(self.device) for s in samples], dim=0)
 
             except Exception as e:
+                print(f"DEBUG: Dream Batch Failed: {e}")
                 self.logger.debug(f"Failed to create replay batch, skipping dream step: {e}")
                 continue
                 
@@ -995,16 +998,31 @@ class AdaptiveFramework(nn.Module):
             elif isinstance(outputs, tuple): logits = outputs[0]
             else: logits = outputs
             
+            # Loss Calculation
+            loss = 0.0
             if logits.shape == batch_targets.shape:
                 loss = F.mse_loss(logits.float(), batch_targets.float())
             else:
-                if logits.dim() > batch_targets.dim() and batch_targets.dim() == 1:
-                     if batch_targets.dtype != torch.long: batch_targets = batch_targets.long()
-                     loss = F.cross_entropy(logits.view(-1, logits.size(-1)), batch_targets.view(-1))
-                else:
-                     loss = F.mse_loss(logits.float(), batch_targets.float())
+                # Simplified fallback
+                loss = F.mse_loss(logits.float(), batch_targets.float())
             
+            print(f"DEBUG: Dream Loss: {loss.item()}")
+
+            # [V9.0] Auxiliary Loss (Load Balancing, etc.)
+            if hasattr(self.model, 'get_aux_loss'):
+                aux = self.model.get_aux_loss()
+                loss += aux
+                metrics['aux_loss'] = aux.item() if hasattr(aux, 'item') else 0.0
+
             loss.backward()
+            
+            # Debug Gradients
+            # total_norm = 0
+            # for p in self.model.parameters():
+            #    if p.grad is not None:
+            #        total_norm += p.grad.data.norm(2).item()
+            # print(f"DEBUG: Grad Norm: {total_norm}")
+            
             self.optimizer.step()
 
     def learn_from_episodic_memory(self, current_surprise: float, current_loss: float, current_features: Optional[torch.Tensor] = None, k: int = 5):
@@ -1104,38 +1122,159 @@ class AdaptiveFramework(nn.Module):
             
         self.logger.info(f"Checkpoint loaded from {path}")
 
-    def auto_apply_best_task_memory(self, threshold: float = 0.8):
-        """Search saved task memories by fingerprint."""
-        try:
-            names = self.memory.list_task_memories()
-            if not names: return False
+    def inference_step(self, *model_inputs, return_diagnostics: bool = False, remember: bool = False):
+        """
+        [V9.1] Production Inference Step.
+        Runs the cognitive loop (Perception -> World Model -> Cortex -> Consciousness)
+        without updating weights. Thread-safe and optimized for serving.
+        
+        Args:
+            remember (bool): If True, stores the experience in Short-Term Memory and Graph Memory.
+                             This enables "One-Shot" retention without weight updates.
+        """
+        self.model.eval()
+        
+        diagnostics = {}
+        
+        with torch.no_grad():
+            # 1. Forward Pass
+            # This handles Perception, MoE Routing, and Introspection automatically
+            outputs, log_var, affine_modifiers = self.forward(*model_inputs)
             
-            fp = self.telemetry_buffer.mean(dim=0).flatten()
-            fp_norm = fp / (fp.norm() + 1e-9)
+            # Extract main prediction
+            if hasattr(outputs, 'logits'):
+                prediction = outputs.logits
+            elif isinstance(outputs, tuple):
+                prediction = outputs[0]
+            else:
+                prediction = outputs
+                
+            # 2. World Model Foresight (Optional)
+            if self.world_model and hasattr(self, '_current_z_prediction') and self._current_z_prediction is not None:
+                z_pred = self._current_z_prediction
+                diagnostics['foresight_vector'] = z_pred.mean(dim=0).cpu().numpy()
             
-            best_score, best_name = -1.0, None
+            # 3. Consciousness State (Optional)
+            if self.consciousness:
+                obs = self.consciousness.observe(
+                    y_true=prediction, 
+                    y_pred=prediction, 
+                    features=self._last_fused_latent if hasattr(self, '_last_fused_latent') else None
+                )
+                diagnostics['consciousness'] = obs
             
-            for name in names:
-                payload = self.memory.load_task_memory(name)
-                if not payload or 'fingerprint' not in payload: continue
+            # 4. Expert Usage
+            if hasattr(self.model, 'get_expert_usage'):
+                diagnostics['expert_usage'] = self.model.get_expert_usage().cpu().numpy()
+
+            # 5. [V9.2] Live Memory Injection (The "Never Forget" Mechanism)
+            # 5. [V9.2] Live Memory Injection (The "Never Forget" Mechanism)
+            if remember and self.memory:
+                # Create snapshot
+                snapshot = type('Snapshot', (), {})()
+                snapshot.input_args = model_inputs
+                snapshot.target = prediction # Self-supervised (memories are own experiences)
+                snapshot.timestamp = time.time()
                 
-                other = torch.tensor(payload['fingerprint'], device=self.device).flatten()
-                score = F.cosine_similarity(fp_norm.unsqueeze(0), (other / (other.norm() + 1e-9)).unsqueeze(0)).item()
+                # A. Add to Graph Memory (Instant episodic retention)
+                features = self._last_fused_latent if hasattr(self, '_last_fused_latent') and self._last_fused_latent is not None else (prediction if prediction.dim() > 1 else None)
                 
-                if score > best_score:
-                    best_score = score
-                    best_name = name
+                if hasattr(self.memory, 'graph_memory') and self.memory.graph_memory and features is not None:
+                    self.memory.graph_memory.add(snapshot, features.detach())
+                    diagnostics['memory_stored'] = True
+                else:
+                    diagnostics['memory_stored'] = False # Explicit fail tracking
+                    
+                # B. Add to Feedback Buffer (For future "Dreaming" / Weight Adaptation)
+                # We interpret the prediction as the target for reinforcement
+                if self.feedback_buffer:
+                    # We need to unpack args if tuple
+                    kwargs = {} # Empty for now
+                    self.feedback_buffer.add(
+                        input_args=model_inputs,
+                        input_kwargs=kwargs,
+                        output=prediction,
+                        target=prediction, # Self-consistency
+                        reward=0.0,
+                        loss=0.0
+                    )
+
+        if return_diagnostics:
+            return prediction, diagnostics
+        else:
+            return prediction
+    def cognitive_inference(self, *model_inputs, max_steps: int = 3, threshold: float = 0.5):
+        """
+        [V9.3] Metacognitive Inference ("System 2" Thinking).
+        Performs iterative refinement based on internal uncertainty (Entropy).
+        
+        Algorithm:
+        1. Fast System 1 pass.
+        2. Check Consciousness Entropy.
+        3. If Confused (> threshold):
+           a. "Reflect": Use World Model to predict consequence.
+           b. "Recall": Query Graph Memory using the Reflection.
+           c. Return enriched result.
+        """
+        # 1. System 1 (Fast)
+        pred, diagnostics = self.inference_step(*model_inputs, return_diagnostics=True)
+        
+        cons = diagnostics.get('consciousness', {})
+        entropy = cons.get('entropy', 0.0)
+        
+        if entropy < threshold:
+            diagnostics['mode'] = 'System 1 (Intuitive)'
+            return pred, diagnostics
             
-            if best_name and best_score > threshold:
-                self.logger.info(f"[MEMORY] Applied task memory: {best_name} (Score: {best_score:.2f})")
+        # 2. System 2 (Slow / Deliberative)
+        diagnostics['mode'] = 'System 2 (Deliberative)'
+        diagnostics['initial_uncertainty'] = entropy
+        
+        # A. Reflection (World Model)
+        # What is the consequence of this output?
+        reflection_vector = None
+        if 'foresight_vector' in diagnostics:
+            reflection_vector = diagnostics['foresight_vector']
+        elif 'expert_usage' in diagnostics:
+            reflection_vector = diagnostics['expert_usage'] # Fallback
+            
+        # B. Active Recall (RAG)
+        # Use simple prediction if reflection unavailable
+        query_vec = torch.tensor(reflection_vector) if reflection_vector is not None else pred
+        if isinstance(query_vec, np.ndarray): query_vec = torch.from_numpy(query_vec)
+        if query_vec.dim() > 1: query_vec = query_vec.mean(dim=0)
+        
+        retrieved_context = []
+        if self.memory and hasattr(self.memory, 'graph_memory') and self.memory.graph_memory:
+            # Search broadly (System 2 scans more)
+            results = self.memory.graph_memory.retrieve(query_vec, k=max_steps)
+            for res in results:
+                # We extract the content (target/output) from the snapshot
+                if hasattr(res, 'target'):
+                    retrieved_context.append(res.target)
+                    
+        diagnostics['retrieved_memories'] = len(retrieved_context)
+        
+        # C. Refinement (Ensemble/Consensus)
+        # If we found memories, maybe we can average them with our prediction?
+        # (Naive "Thinking" - adjusting belief based on past experience)
+        if retrieved_context and isinstance(pred, torch.Tensor):
+            try:
+                # Stack memories: [K, ...]
+                ctx_tensor = torch.stack([r.to(pred.device) for r in retrieved_context if isinstance(r, torch.Tensor)])
                 
-                # Apply Adapters
-                payload = self.memory.load_task_memory(best_name)
-                if 'adapters' in payload and self.adapter_bank:
-                    # Logic to load partial adapters would go here
-                    pass
-                return True
+                if ctx_tensor.size(0) > 0:
+                    # Average over retrieved items to get a single context vector
+                    ctx_mean = ctx_tensor.mean(dim=0)
+                    
+                    # Consensus = 0.7 * Plan + 0.3 * Memory
+                    if ctx_mean.shape == pred.shape: # Exact match
+                        refined_pred = 0.7 * pred + 0.3 * ctx_mean
+                        return refined_pred, diagnostics
+                    elif ctx_mean.numel() == pred.numel(): # Element count match (reshape)
+                         refined_pred = 0.8 * pred + 0.2 * ctx_mean.view_as(pred)
+                         return refined_pred, diagnostics
+            except Exception:
+                pass
                 
-        except Exception as e:
-            self.logger.debug(f"Auto-memory failed: {e}")
-        return False
+        return pred, diagnostics

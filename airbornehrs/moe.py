@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import copy
+import numpy as np
 
 class ExpertBlock(nn.Module):
     """
@@ -52,7 +53,34 @@ class GatingNetwork(nn.Module):
         # Softmax over top-k
         weights = F.softmax(top_k_logits, dim=1)
         
+        # [V9.0] Load Balancing Loss (Auxiliary)
+        # Goal: Minimize Coefficient of Variation (CV) of expert usage
+        # Importance = Sum of gate probabilities for each expert
+        # Since we only have top-k logits, we approximate importance using the selected weights
+        
+        batch_size = top_k_indices.size(0)
+
+        # Create full probability vector (scatter)
+        # [B, NumExperts]
+        mask = torch.zeros(batch_size, self.gate.out_features, device=x.device)
+        mask.scatter_(1, top_k_indices, weights)
+        
+        # Importance: [NumExperts]
+        importance = mask.sum(dim=0)
+        
+        # CV squared = (std / mean)^2
+        # std = sqrt(E[x^2] - (E[x])^2)
+        # CV^2 = var / mean^2
+        
+        # Add small epsilon to mean to prevent div by zero
+        mean_imp = importance.mean() + 1e-6
+        var_imp = importance.var()
+        self.aux_loss = (var_imp / (mean_imp ** 2)) * 1.0 # Scaling factor
+        
         return weights, top_k_indices
+
+    def get_aux_loss(self):
+        return getattr(self, 'aux_loss', 0.0)
 
 class SparseMoE(nn.Module):
     """
@@ -70,6 +98,15 @@ class SparseMoE(nn.Module):
         ])
         
         self.gate = GatingNetwork(input_dim, num_experts, top_k)
+        
+        # [V9.0] Analysis: Track expert usage
+        self.register_buffer('expert_usage', torch.zeros(num_experts))
+
+    def get_usage_stats(self):
+        return self.expert_usage.cpu().numpy()
+        
+    def get_aux_loss(self):
+        return self.gate.get_aux_loss()
 
     def forward(self, x):
         # x: [batch_size, ...]
@@ -82,6 +119,13 @@ class SparseMoE(nn.Module):
         
         # [V9.0] Let GatingNetwork handle Pooling/Flattening
         weights, indices = self.gate(x) # weights: [B, k], indices: [B, k]
+        
+        # [V9.0] Track usage
+        with torch.no_grad():
+            flat_indices = indices.view(-1)
+            for idx in flat_indices:
+                if idx < self.num_experts:
+                    self.expert_usage[idx] += 1
         
         batch_size = x.size(0)
         
@@ -146,6 +190,13 @@ class HierarchicalMoE(nn.Module):
             SparseMoE(base_model, input_dim, num_experts=experts_per_domain, top_k=top_k)
             for _ in range(num_domains)
         ])
+        
+    def get_expert_usage(self):
+        """Returns [num_domains, experts_per_domain] usage counts."""
+        usage = []
+        for domain in self.domains:
+            usage.append(domain.get_usage_stats())
+        return np.array(usage)
     
     def forward(self, x):
         """
@@ -189,3 +240,17 @@ class HierarchicalMoE(nn.Module):
             final_output = final_output.index_add(0, batch_idx, domain_out * w)
             
         return final_output, domain_indices
+
+    def get_aux_loss(self):
+        """Aggregate load balancing loss from all levels."""
+        total_loss = 0.0
+        # Level 1 Router
+        if hasattr(self.domain_router, 'get_aux_loss'):
+            total_loss += self.domain_router.get_aux_loss()
+            
+        # Level 2 Experts
+        for domain in self.domains:
+            if hasattr(domain, 'get_aux_loss'):
+                total_loss += domain.get_aux_loss()
+                
+        return total_loss
