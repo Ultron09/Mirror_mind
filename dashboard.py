@@ -63,17 +63,23 @@ def fetch_history():
 
 st.title("🧠 Ultron Mind Reader")
 
-# Mission Control
-with st.container():
-    col_mission, col_status = st.columns([3, 1])
-    with col_mission:
-        new_goal = st.text_input("Current Mission (Press Enter to Update)", placeholder="e.g. Find python tutorials")
-        if new_goal:
-            try:
-                requests.post(f"{OBSERVER_URL}/set_goal", json={"goal": new_goal})
-                st.toast(f"Mission Updated: {new_goal}")
-            except:
-                st.error("Observer Offline")
+# ==================== CONTROLS ====================
+c1, c2, c3 = st.columns([2, 1, 1])
+with c1:
+    new_goal = st.text_input("Mission / Prompt", placeholder="Find python tutorials")
+    if new_goal and st.button("Update Mission"):
+        try: requests.post(f"{OBSERVER_URL}/set_goal", json={"goal": new_goal})
+        except: pass
+
+with c2:
+    if st.button("MANUAL: CLICK CENTER"):
+        requests.post(f"{OBSERVER_URL}/manual_command", json={"cmd": "click_center"})
+
+with c3:
+    # EMERGENCY STOP
+    if st.button("🚨 EMERGENCY STOP 🚨", type="primary"):
+        requests.post(f"{OBSERVER_URL}/kill")
+        st.error("KILL SIGNAL SENT!")
 
 col1, col2 = st.columns([1, 2])
 

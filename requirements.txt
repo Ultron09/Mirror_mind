@@ -1,15 +1,14 @@
-torch==2.0.1
-numpy==1.24.4
-matplotlib==3.7.1
-tensorboard==2.12.2
-pytest==7.4.0
-tqdm
-pytest
-transformers
-datasets
-seaborn
+torch>=2.0.0
+torchvision>=0.15.0
+numpy
+Pillow
+pyautogui
+pytesseract
+fastapi
+uvicorn
 streamlit
+sentence-transformers
+keyboard
+requests
 pandas
-plotly
-# NOTE: If you require GPU-enabled PyTorch builds, install an appropriate
-# wheel for your CUDA version following instructions at https://pytorch.org
+altair

@@ -23,7 +23,9 @@ app = FastAPI(title="Ultron Observer Node")
 class GlobalState:
     latest: Optional[TelemetryData] = None
     history: List[TelemetryData] = []
-    goal: str = "Explore freely" # Default goal
+    goal: str = "Explore freely"
+    kill_signal: bool = False
+    manual_cmd: Optional[dict] = None # For remote control
     
 state = GlobalState()
 
@@ -31,18 +33,37 @@ state = GlobalState()
 
 @app.get("/")
 def home():
-    return {"status": "Observer Node Online", "goal": state.goal}
+    return {"status": "Observer Node Online", "goal": state.goal, "kill": state.kill_signal}
 
 @app.post("/set_goal")
 def set_goal(payload: Dict[str, str]):
-    """Update the agent's current mission."""
     state.goal = payload.get("goal", "Explore freely")
     return {"status": "updated", "goal": state.goal}
 
-@app.get("/get_goal")
-def get_goal():
-    """Agent polls this to know what to do."""
-    return {"goal": state.goal}
+@app.post("/kill")
+def trigger_kill():
+    """Emergency Stop."""
+    state.kill_signal = True
+    print("!!! KILL SIGNAL RECEIVED !!!")
+    return {"status": "KILL_ACTIVE"}
+
+@app.post("/manual_command")
+def manual_command(payload: Dict[str, Any]):
+    """Remote control command."""
+    # payload: {"cmd": "click", "x": 10, "y": 10} etc
+    state.manual_cmd = payload
+    return {"status": "queued"}
+
+@app.get("/get_status")
+def get_status():
+    """Agent polls this loop."""
+    cmd = state.manual_cmd
+    state.manual_cmd = None # Consume command
+    return {
+        "goal": state.goal, 
+        "kill": state.kill_signal,
+        "manual_cmd": cmd
+    }
 
 @app.post("/update")
 async def update_telemetry(data: TelemetryData):

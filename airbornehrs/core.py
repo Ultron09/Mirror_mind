@@ -1221,7 +1221,7 @@ class AdaptiveFramework(nn.Module):
             return prediction, diagnostics
         else:
             return prediction
-    def cognitive_inference(self, *model_inputs, max_steps: int = 3, threshold: float = 0.5):
+    def cognitive_inference(self, *model_inputs, max_steps: int = 3, threshold: float = 0.5, remember: bool = False):
         """
         [V9.3] Metacognitive Inference ("System 2" Thinking).
         Performs iterative refinement based on internal uncertainty (Entropy).
@@ -1235,7 +1235,7 @@ class AdaptiveFramework(nn.Module):
            c. Return enriched result.
         """
         # 1. System 1 (Fast)
-        pred, diagnostics = self.inference_step(*model_inputs, return_diagnostics=True)
+        pred, diagnostics = self.inference_step(*model_inputs, return_diagnostics=True, remember=remember)
         
         # Determine Query Key: Input (Context) or Prediction (Result)?
         query_key = pred
