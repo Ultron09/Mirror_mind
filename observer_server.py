@@ -23,6 +23,7 @@ app = FastAPI(title="Ultron Observer Node")
 class GlobalState:
     latest: Optional[TelemetryData] = None
     history: List[TelemetryData] = []
+    goal: str = "Explore freely" # Default goal
     
 state = GlobalState()
 
@@ -30,7 +31,18 @@ state = GlobalState()
 
 @app.get("/")
 def home():
-    return {"status": "Observer Node Online", "last_update": state.latest.timestamp if state.latest else 0}
+    return {"status": "Observer Node Online", "goal": state.goal}
+
+@app.post("/set_goal")
+def set_goal(payload: Dict[str, str]):
+    """Update the agent's current mission."""
+    state.goal = payload.get("goal", "Explore freely")
+    return {"status": "updated", "goal": state.goal}
+
+@app.get("/get_goal")
+def get_goal():
+    """Agent polls this to know what to do."""
+    return {"goal": state.goal}
 
 @app.post("/update")
 async def update_telemetry(data: TelemetryData):

@@ -62,6 +62,19 @@ def fetch_history():
 # ==================== UI ====================
 
 st.title("🧠 Ultron Mind Reader")
+
+# Mission Control
+with st.container():
+    col_mission, col_status = st.columns([3, 1])
+    with col_mission:
+        new_goal = st.text_input("Current Mission (Press Enter to Update)", placeholder="e.g. Find python tutorials")
+        if new_goal:
+            try:
+                requests.post(f"{OBSERVER_URL}/set_goal", json={"goal": new_goal})
+                st.toast(f"Mission Updated: {new_goal}")
+            except:
+                st.error("Observer Offline")
+
 col1, col2 = st.columns([1, 2])
 
 # Placeholder for real-time loop using st.empty() is old school.
