@@ -1177,7 +1177,25 @@ class AdaptiveFramework(nn.Module):
                 snapshot.timestamp = time.time()
                 
                 # A. Add to Graph Memory (Instant episodic retention)
-                features = self._last_fused_latent if hasattr(self, '_last_fused_latent') and self._last_fused_latent is not None else (prediction if prediction.dim() > 1 else None)
+                features = self._last_fused_latent if hasattr(self, '_last_fused_latent') and self._last_fused_latent is not None else None
+                
+                # If no latent state, try to use input or prediction based on dimension match
+                if features is None and hasattr(self.memory, 'feature_dim'):
+                    needed_dim = self.memory.feature_dim
+                    # Try Input First (Context Key)
+                    if len(model_inputs) > 0 and isinstance(model_inputs[0], torch.Tensor):
+                        if model_inputs[0].shape[-1] == needed_dim:
+                            features = model_inputs[0]
+                    
+                    # Try Prediction Second (Result Key)
+                    if features is None and prediction.dim() > 1:
+                        if prediction.shape[-1] == needed_dim:
+                            features = prediction
+                            
+                # Fallback (Legacy)
+                if features is None and prediction.dim() > 1:
+                    features = prediction
+
                 
                 if hasattr(self.memory, 'graph_memory') and self.memory.graph_memory and features is not None:
                     self.memory.graph_memory.add(snapshot, features.detach())
