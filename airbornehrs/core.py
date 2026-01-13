@@ -150,6 +150,7 @@ class AdaptiveFrameworkConfig:
     # --- V9.0: SYNTHETIC INTUITION ---
     enable_world_model: bool = False
     world_model_loss_weight: float = 0.1
+    world_model_plasticity_gamma: float = 1.0 # [V9.2] Plasticity Gamma
     enable_health_monitor: bool = True
     health_check_interval: int = 20 # Every 20 steps
 
@@ -815,7 +816,10 @@ class AdaptiveFramework(nn.Module):
             
             # [V9.0] Inject Predictive Surprise into Plasticity
             if hasattr(self, '_world_model_surprise'):
-                 plasticity *= (1.0 + self._world_model_surprise)
+                 gamma = getattr(self.config, 'world_model_plasticity_gamma', 1.0)
+                 surprise = self._world_model_surprise
+                 # V2 Paper Formula: eta_base * (1 + gamma * tanh(S))
+                 plasticity *= (1.0 + gamma * torch.tanh(torch.tensor(surprise, device=self.device)))
             
             for param_group in self.optimizer.param_groups:
                 param_group['lr'] = self.config.learning_rate * plasticity

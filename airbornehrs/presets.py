@@ -130,7 +130,23 @@ class Preset:
     curriculum_start_difficulty: float = 0.1
     curriculum_increase_rate: float = 0.01
     use_learned_optimizer: bool = True
+    use_learned_optimizer: bool = True
     learned_optimizer_hidden_dim: int = 32
+
+    # V8.0: PERCEPTION INTERFACE
+    enable_perception: bool = False
+    vision_dim: int = 3 # Channels
+    audio_dim: int = 80 # Mel bins
+    text_dim: int = 0   # Optional projection
+    perception_layers: int = 2
+    perception_heads: int = 4
+
+    # V9.0: SYNTHETIC INTUITION & HEALTH
+    enable_world_model: bool = False
+    world_model_loss_weight: float = 0.1
+    world_model_plasticity_gamma: float = 1.0
+    enable_health_monitor: bool = True
+    health_check_interval: int = 20
     
     def merge(self, other: 'Preset') -> 'Preset':
         """Merge another preset into this one (other overwrites self)."""
@@ -221,7 +237,14 @@ class PresetManager:
             # Full consciousness: 5D awareness
             enable_consciousness=True,
             use_attention=True,
+            # Full consciousness: 5D awareness
+            enable_consciousness=True,
+            use_attention=True,
             use_intrinsic_motivation=True,
+            
+            # V9.0: Synthetic Intuition (World Model)
+            enable_world_model=True,
+            enable_health_monitor=True,
             
             # Conservative thresholds
             panic_threshold=0.15,
