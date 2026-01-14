@@ -11,15 +11,12 @@ jobs:
   run-gauntlet:
     name: 🛡️ Validation Gauntlet (Phases 1-7)
     runs-on: ubuntu-latest
-    timeout-minutes: 60 # SOTA Deathmatch + Pre-training can be long
+    timeout-minutes: 360 # Max limit for GitHub Actions (6 hours).
 
     env:
-      MPLBACKEND: Agg # Prevents Matplotlib from trying to open a window
+      MPLBACKEND: Agg
 
     steps:
-    # ------------------------------------------------------------------
-    # 1. SETUP
-    # ------------------------------------------------------------------
     - name: 📥 Checkout Code
       uses: actions/checkout@v4
 
@@ -32,67 +29,29 @@ jobs:
     - name: 📦 Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        # Ensure we have the critical libs for the protocol
-        pip install torch numpy matplotlib requests tqdm
+        pip install torch torchvision numpy matplotlib tqdm requests pypdf
+        # USER REQUEST: Install specific version
+        pip install airbornehrs==2.0.4
 
-    # ------------------------------------------------------------------
-    # 2. DATA INGESTION
-    # ------------------------------------------------------------------
-    - name: 📂 Setup Real ARC-AGI Dataset
+    - name: 🔬 Run NeurIPS Scientific Benchmark (100 Epochs)
       run: |
-        python arc_data.py
-      continue-on-error: false
+        # Running with 3 seeds for 100 epochs
+        # Note: This takes ~90 hours on GPU. On CPU GitHub Runner, this forces 6-hour timeout cap.
+        # We will attempt it, but it likely requires a self-hosted runner for full completion.
+        python benchmark_continual.py --seeds 42 43 44 --epochs 100
 
-    # ------------------------------------------------------------------
-    # 3. THE PROTOCOL (PHASES 1-4)
-    # ------------------------------------------------------------------
-    - name: "Phase 1: System Integrity (Smoke Test)"
-      run: python experiments/protocol_v1/phase1_integrity.py
+    - name: 📊 Generate Plots
+      if: always() # Plot whatever data we collected before timeout
+      run: |
+        python plot_benchmark.py
 
-    - name: "Phase 2: Functional Logic (Introspection Check)"
-      run: python experiments/protocol_v1/phase2_verification.py
-
-    - name: "Phase 3: Universal Compatibility (Omni-Test)"
-      run: python experiments/protocol_v1/phase3_universal.py
-
-    - name: "Phase 4: Behavioral Dynamics (Reflex Test)"
-      run: python experiments/protocol_v1/phase4_behavior.py
-
-    # ------------------------------------------------------------------
-    # 4. THE INTELLIGENCE TEST (PHASE 5)
-    # ------------------------------------------------------------------
-    - name: "Phase 5a: The School (Pre-Training)"
-      run: python experiments/protocol_v1/phase5a_pretrain.py
-      # Note: This trains the model on the 400 ARC tasks downloaded in step 2
-
-    - name: "Phase 5b: The Exam (ARC-AGI Benchmark)"
-      run: python experiments/protocol_v1/phase5_arc_challenge.py
-
-    # ------------------------------------------------------------------
-    # 5. THE STABILITY TEST (PHASE 6)
-    # ------------------------------------------------------------------
-    - name: "Phase 6: The Titan Seal (Chaos Stability)"
-      run: python experiments/protocol_v1/phase6_titan_seal.py
-
-    # ------------------------------------------------------------------
-    # 6. THE DEATHMATCH (PHASE 7)
-    # ------------------------------------------------------------------
-    - name: "Phase 7: SOTA Deathmatch (Broken Drone)"
-      run: python experiments/protocol_v1/phase7_sota_deathmatch.py
-
-    # ------------------------------------------------------------------
-    # 7. REPORTING
-    # ------------------------------------------------------------------
-    - name: "📝 Generate Final Victory Report"
-      run: python generate_final_report.py
-
-    - name: "📤 Upload Validation Artifacts"
+    - name: 📤 Upload Benchmark Artifacts
       uses: actions/upload-artifact@v4
-      if: always() # Upload logs even if a test fails
+      if: always()
       with:
-        name: mirrormind-results
+        name: benchmark-results-100-epochs
         path: |
-          RESULTS_SUMMARY.md
-          experiments/protocol_v1/*.png
-          experiments/protocol_v1/*.log
+          benchmark_results.json
+          paper_results_acc.png
+          paper_results_bwt.png
+          benchmark.log
