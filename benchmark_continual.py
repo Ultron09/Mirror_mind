@@ -59,14 +59,29 @@ def get_cifar100_split():
     task_a_classes = list(range(0, 50))
     task_b_classes = list(range(50, 100))
     
+    # OPTIMIZATION: Faster Data Loading
+    num_workers = 4 if torch.cuda.is_available() else 0
+    pin_memory = True if torch.cuda.is_available() else False
+    
+    # OPTIMIZATION: Bigger Batch Size (512)
+    active_batch_size = max(args.batch_size, 512)
+
     loaders = {
         'A': {
-            'train': DataLoader(Subset(train_set, get_indices(train_set, task_a_classes)), batch_size=args.batch_size, shuffle=True),
-            'test': DataLoader(Subset(test_set, get_indices(test_set, task_a_classes)), batch_size=args.batch_size, shuffle=False)
+            'train': DataLoader(Subset(train_set, get_indices(train_set, task_a_classes)), 
+                              batch_size=active_batch_size, shuffle=True, 
+                              num_workers=num_workers, pin_memory=pin_memory, prefetch_factor=2 if num_workers>0 else None),
+            'test': DataLoader(Subset(test_set, get_indices(test_set, task_a_classes)), 
+                             batch_size=active_batch_size, shuffle=False,
+                             num_workers=num_workers, pin_memory=pin_memory)
         },
         'B': {
-            'train': DataLoader(Subset(train_set, get_indices(train_set, task_b_classes)), batch_size=args.batch_size, shuffle=True),
-            'test': DataLoader(Subset(test_set, get_indices(test_set, task_b_classes)), batch_size=args.batch_size, shuffle=False)
+            'train': DataLoader(Subset(train_set, get_indices(train_set, task_b_classes)), 
+                              batch_size=active_batch_size, shuffle=True,
+                              num_workers=num_workers, pin_memory=pin_memory, prefetch_factor=2 if num_workers>0 else None),
+            'test': DataLoader(Subset(test_set, get_indices(test_set, task_b_classes)), 
+                             batch_size=active_batch_size, shuffle=False,
+                             num_workers=num_workers, pin_memory=pin_memory)
         }
     }
     return loaders
@@ -112,6 +127,10 @@ def run_experiment_seed(seed, dataset, mode):
     torch.manual_seed(seed)
     np.random.seed(seed)
     
+    # OPTIMIZATION: Enable CuDNN Benchmarking
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
+        
     logger.info(f"--- STARTING: {mode.upper()} | SEED: {seed} ---")
     
     base_model = ResNetLike()
