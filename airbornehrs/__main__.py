@@ -24,7 +24,7 @@ import torch.nn as nn
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # --- CONFIG ---
-VERSION = "2.0.2"
+VERSION = "2.0.4"
 AUTHOR = "Suryaansh Prithvijit Singh"
 ASCII_LOGO = """
  █████╗ ██╗██████╗ ██████╗  ██████╗ ██████╗ ███╗   ██╗███████╗

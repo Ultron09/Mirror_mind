@@ -1,0 +1,149 @@
+2026-01-13 19:44:54,247 - INFO - Loading CIFAR-100...
+2026-01-13 19:45:19,672 - INFO - --- STARTING: NAIVE | SEED: 42 ---
+2026-01-13 19:45:20,171 - INFO - [BRAIN] Unified Memory System Online (none, Graph=False)
+2026-01-13 19:45:20,238 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-13 19:45:20,262 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-13 19:45:20,263 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-13 19:45:20,263 - INFO - [NAIVE-42] Training Task A (5 epo)...
+2026-01-13 19:51:00,464 - WARNING - Benchmark interrupted by user. Progress saved.
+2026-01-13 19:51:06,501 - INFO - Loading CIFAR-100...
+2026-01-13 19:51:33,148 - INFO - --- STARTING: NAIVE | SEED: 42 ---
+2026-01-13 19:51:33,157 - INFO - 🧠 Unified Memory Handler initialized (method=none, ogd=False).
+2026-01-13 19:51:33,157 - INFO - [BRAIN] Unified Memory System Online (none, Graph=False)
+2026-01-13 19:51:33,160 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-13 19:51:33,162 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-13 19:51:33,163 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-13 19:51:33,164 - INFO - [NAIVE-42] Training Task A (5 epo)...
+2026-01-13 21:46:08,396 - INFO - [NAIVE-42] Task A done in 6875.2s
+2026-01-13 21:46:24,230 - INFO - [NAIVE-42] Training Task B (5 epo)...
+2026-01-13 22:01:59,959 - INFO - [NAIVE-42] RESULT: A1=8.72 | A2=0.20 | B2=6.34 | BWT=-8.52
+2026-01-13 22:01:59,965 - INFO - --- STARTING: EWC | SEED: 42 ---
+2026-01-13 22:01:59,971 - INFO - 🧠 Unified Memory Handler initialized (method=ewc, ogd=False).
+2026-01-13 22:01:59,972 - INFO - [BRAIN] Unified Memory System Online (ewc, Graph=False)
+2026-01-13 22:01:59,975 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-13 22:01:59,975 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-13 22:01:59,976 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-13 22:01:59,977 - INFO - [EWC-42] Training Task A (5 epo)...
+2026-01-13 22:17:20,343 - INFO - [EWC-42] Task A done in 920.4s
+2026-01-13 22:17:36,691 - INFO - [EWC-42] Consolidating Memory...
+2026-01-13 22:17:36,692 - INFO - 🧠 Consolidating Memory (Step 1, Mode NORMAL)...
+2026-01-13 22:17:36,692 - INFO - 🔒 Consolidation complete.
+2026-01-13 22:17:36,692 - INFO - [EWC-42] Training Task B (5 epo)...
+2026-01-13 22:33:28,463 - INFO - [EWC-42] RESULT: A1=8.72 | A2=0.20 | B2=6.34 | BWT=-8.52
+2026-01-13 22:33:28,466 - INFO - --- STARTING: AIRBORNE | SEED: 42 ---
+2026-01-13 22:33:28,472 - INFO - 🧠 Unified Memory Handler initialized (method=hybrid, ogd=False).
+2026-01-13 22:33:28,472 - INFO - [BRAIN] Unified Memory System Online (hybrid, Graph=False)
+2026-01-13 22:33:28,487 - INFO - [CONSCIOUSNESS] Self-Awareness Module Active
+2026-01-13 22:33:28,489 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-13 22:33:28,490 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-13 22:33:28,492 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-13 22:33:28,492 - INFO - [AIRBORNE-42] Training Task A (5 epo)...
+2026-01-13 22:48:50,196 - INFO - [AIRBORNE-42] Task A done in 921.7s
+2026-01-13 22:49:05,918 - INFO - [AIRBORNE-42] Consolidating Memory...
+2026-01-13 22:49:05,919 - INFO - 🧠 Consolidating Memory (Step 1, Mode NORMAL)...
+2026-01-13 22:49:05,925 - INFO - 🔒 Consolidation complete.
+2026-01-13 22:49:05,925 - INFO - [AIRBORNE-42] Training Task B (5 epo)...
+2026-01-14 08:01:40,957 - INFO - [AIRBORNE-42] RESULT: A1=5.14 | A2=0.56 | B2=5.10 | BWT=-4.58
+2026-01-14 08:01:40,961 - INFO - --- STARTING: NAIVE | SEED: 43 ---
+2026-01-14 08:01:40,969 - INFO - 🧠 Unified Memory Handler initialized (method=none, ogd=False).
+2026-01-14 08:01:40,969 - INFO - [BRAIN] Unified Memory System Online (none, Graph=False)
+2026-01-14 08:01:40,972 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-14 08:01:40,973 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-14 08:01:40,974 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-14 08:01:40,976 - INFO - [NAIVE-43] Training Task A (5 epo)...
+2026-01-14 08:16:56,995 - INFO - [NAIVE-43] Task A done in 916.0s
+2026-01-14 08:17:13,156 - INFO - [NAIVE-43] Training Task B (5 epo)...
+2026-01-14 08:32:27,829 - INFO - [NAIVE-43] RESULT: A1=4.28 | A2=0.52 | B2=5.18 | BWT=-3.76
+2026-01-14 08:32:27,832 - INFO - --- STARTING: EWC | SEED: 43 ---
+2026-01-14 08:32:27,840 - INFO - 🧠 Unified Memory Handler initialized (method=ewc, ogd=False).
+2026-01-14 08:32:27,841 - INFO - [BRAIN] Unified Memory System Online (ewc, Graph=False)
+2026-01-14 08:32:27,843 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-14 08:32:27,843 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-14 08:32:27,844 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-14 08:32:27,845 - INFO - [EWC-43] Training Task A (5 epo)...
+2026-01-14 08:47:13,227 - INFO - [EWC-43] Task A done in 885.4s
+2026-01-14 08:47:28,271 - INFO - [EWC-43] Consolidating Memory...
+2026-01-14 08:47:28,271 - INFO - 🧠 Consolidating Memory (Step 1, Mode NORMAL)...
+2026-01-14 08:47:28,272 - INFO - 🔒 Consolidation complete.
+2026-01-14 08:47:28,272 - INFO - [EWC-43] Training Task B (5 epo)...
+2026-01-14 09:03:21,408 - INFO - [EWC-43] RESULT: A1=4.28 | A2=0.52 | B2=5.18 | BWT=-3.76
+2026-01-14 09:03:21,413 - INFO - --- STARTING: AIRBORNE | SEED: 43 ---
+2026-01-14 09:03:21,418 - INFO - 🧠 Unified Memory Handler initialized (method=hybrid, ogd=False).
+2026-01-14 09:03:21,419 - INFO - [BRAIN] Unified Memory System Online (hybrid, Graph=False)
+2026-01-14 09:03:21,429 - INFO - [CONSCIOUSNESS] Self-Awareness Module Active
+2026-01-14 09:03:21,432 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-14 09:03:21,432 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-14 09:03:21,433 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-14 09:03:21,434 - INFO - [AIRBORNE-43] Training Task A (5 epo)...
+2026-01-14 09:19:01,128 - INFO - [AIRBORNE-43] Task A done in 939.7s
+2026-01-14 09:19:16,255 - INFO - [AIRBORNE-43] Consolidating Memory...
+2026-01-14 09:19:16,256 - INFO - 🧠 Consolidating Memory (Step 1, Mode NORMAL)...
+2026-01-14 09:19:16,259 - INFO - 🔒 Consolidation complete.
+2026-01-14 09:19:16,260 - INFO - [AIRBORNE-43] Training Task B (5 epo)...
+2026-01-14 09:34:52,108 - INFO - [AIRBORNE-43] RESULT: A1=3.46 | A2=0.74 | B2=2.66 | BWT=-2.72
+2026-01-14 09:34:52,112 - INFO - --- STARTING: NAIVE | SEED: 44 ---
+2026-01-14 09:34:52,119 - INFO - 🧠 Unified Memory Handler initialized (method=none, ogd=False).
+2026-01-14 09:34:52,119 - INFO - [BRAIN] Unified Memory System Online (none, Graph=False)
+2026-01-14 09:34:52,121 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-14 09:34:52,121 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-14 09:34:52,123 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-14 09:34:52,124 - INFO - [NAIVE-44] Training Task A (5 epo)...
+2026-01-14 09:49:33,286 - INFO - [NAIVE-44] Task A done in 881.2s
+2026-01-14 09:49:48,520 - INFO - [NAIVE-44] Training Task B (5 epo)...
+2026-01-14 10:05:35,135 - INFO - [NAIVE-44] RESULT: A1=6.40 | A2=0.18 | B2=5.52 | BWT=-6.22
+2026-01-14 10:05:35,142 - INFO - --- STARTING: EWC | SEED: 44 ---
+2026-01-14 10:05:35,150 - INFO - 🧠 Unified Memory Handler initialized (method=ewc, ogd=False).
+2026-01-14 10:05:35,151 - INFO - [BRAIN] Unified Memory System Online (ewc, Graph=False)
+2026-01-14 10:05:35,154 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-14 10:05:35,155 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-14 10:05:35,157 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-14 10:05:35,158 - INFO - [EWC-44] Training Task A (5 epo)...
+2026-01-14 10:20:31,146 - INFO - [EWC-44] Task A done in 896.0s
+2026-01-14 10:20:46,184 - INFO - [EWC-44] Consolidating Memory...
+2026-01-14 10:20:46,184 - INFO - 🧠 Consolidating Memory (Step 1, Mode NORMAL)...
+2026-01-14 10:20:46,184 - INFO - 🔒 Consolidation complete.
+2026-01-14 10:20:46,184 - INFO - [EWC-44] Training Task B (5 epo)...
+2026-01-14 10:36:25,817 - INFO - [EWC-44] RESULT: A1=6.40 | A2=0.18 | B2=5.52 | BWT=-6.22
+2026-01-14 10:36:25,822 - INFO - --- STARTING: AIRBORNE | SEED: 44 ---
+2026-01-14 10:36:25,829 - INFO - 🧠 Unified Memory Handler initialized (method=hybrid, ogd=False).
+2026-01-14 10:36:25,829 - INFO - [BRAIN] Unified Memory System Online (hybrid, Graph=False)
+2026-01-14 10:36:25,847 - INFO - [CONSCIOUSNESS] Self-Awareness Module Active
+2026-01-14 10:36:25,850 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-14 10:36:25,850 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-14 10:36:25,852 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-14 10:36:25,853 - INFO - [AIRBORNE-44] Training Task A (5 epo)...
+2026-01-14 10:51:34,569 - INFO - [AIRBORNE-44] Task A done in 908.7s
+2026-01-14 10:51:49,792 - INFO - [AIRBORNE-44] Consolidating Memory...
+2026-01-14 10:51:49,792 - INFO - 🧠 Consolidating Memory (Step 1, Mode NORMAL)...
+2026-01-14 10:51:49,796 - INFO - 🔒 Consolidation complete.
+2026-01-14 10:51:49,796 - INFO - [AIRBORNE-44] Training Task B (5 epo)...
+2026-01-14 11:07:42,605 - INFO - [AIRBORNE-44] RESULT: A1=6.20 | A2=1.04 | B2=6.70 | BWT=-5.16
+2026-01-14 11:07:42,610 - INFO - All experiments completed successfully.
+2026-01-14 11:42:59,034 - INFO - Resumed from benchmark_results.json
+2026-01-14 11:42:59,035 - INFO - Loading CIFAR-100...
+2026-01-14 11:43:26,220 - INFO - Skipping naive-42 (Already done)
+2026-01-14 11:43:26,226 - INFO - Skipping ewc-42 (Already done)
+2026-01-14 11:43:26,229 - INFO - Skipping airborne-42 (Already done)
+2026-01-14 11:43:26,234 - INFO - All experiments completed successfully.
+2026-01-14 11:43:32,880 - INFO - Resumed from benchmark_results.json
+2026-01-14 11:43:32,880 - INFO - Loading CIFAR-100...
+2026-01-14 11:44:01,817 - INFO - --- STARTING: NAIVE | SEED: 420 ---
+2026-01-14 11:44:01,829 - INFO - 🧠 Unified Memory Handler initialized (method=none, ogd=False).
+2026-01-14 11:44:01,829 - INFO - [BRAIN] Unified Memory System Online (none, Graph=False)
+2026-01-14 11:44:01,832 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-14 11:44:01,834 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-14 11:44:01,836 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-14 11:44:01,837 - INFO - [NAIVE-420] Training Task A (5 epo)...
+2026-01-14 11:59:22,415 - INFO - [NAIVE-420] Task A done in 920.6s
+2026-01-14 11:59:37,616 - INFO - [NAIVE-420] Training Task B (5 epo)...
+2026-01-14 12:16:01,844 - INFO - [NAIVE-420] RESULT: A1=5.88 | A2=0.62 | B2=5.14 | BWT=-5.26
+2026-01-14 12:16:01,852 - INFO - --- STARTING: EWC | SEED: 420 ---
+2026-01-14 12:16:01,866 - INFO - 🧠 Unified Memory Handler initialized (method=ewc, ogd=False).
+2026-01-14 12:16:01,866 - INFO - [BRAIN] Unified Memory System Online (ewc, Graph=False)
+2026-01-14 12:16:01,871 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-14 12:16:01,872 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-14 12:16:01,876 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-14 12:16:01,878 - INFO - [EWC-420] Training Task A (5 epo)...
+2026-01-14 12:56:26,201 - INFO - [EWC-420] Task A done in 2424.3s
+2026-01-14 12:56:41,985 - INFO - [EWC-420] Consolidating Memory...
+2026-01-14 12:56:41,986 - INFO - 🧠 Consolidating Memory (Step 1, Mode NORMAL)...

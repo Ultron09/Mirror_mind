@@ -414,6 +414,8 @@ class AdaptiveFramework(nn.Module):
                 capacity=config.feedback_buffer_size,
                 temperature=getattr(config, 'replay_priority_temperature', 0.6)
             )
+            # FIX: Link framework buffer to memory handler so train_step can save data
+            self.memory.replay_buffer = self.prioritized_buffer
         else:
             self.prioritized_buffer = None
         

@@ -237,9 +237,7 @@ class PresetManager:
             # Full consciousness: 5D awareness
             enable_consciousness=True,
             use_attention=True,
-            # Full consciousness: 5D awareness
-            enable_consciousness=True,
-            use_attention=True,
+
             use_intrinsic_motivation=True,
             
             # V9.0: Synthetic Intuition (World Model)
