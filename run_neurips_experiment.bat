@@ -1,11 +1,23 @@
 @echo off
-title AirborneHRS NeurIPS Benchmark Experiment
+title AirborneHRS NeurIPS Benchmark (RTX 3050 Optimized)
+
+echo [SETUP] Activating Conda Environment: torch-gpu...
+call activate torch-gpu
+if %ERRORLEVEL% NEQ 0 (
+    echo Warning: 'call activate' failed. Trying 'conda activate'...
+    call conda activate torch-gpu
+)
+
+echo [SETUP] Configuring CUDA Memory...
+:: Helps prevent memory fragmentation errors on 6GB RAM
+set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 echo ====================================================
 echo      AirborneHRS NeurIPS Scientific Benchmark
 echo ====================================================
 echo.
 echo This experiment runs 3 seeds (42, 43, 44) for 100 Epochs.
-echo ESTIMATED RUNTIME: ~90 Hours on single GPU.
+echo Safe Mode: Batch Size limited to 64 for RTX 3050.
 echo.
 echo Press Ctrl+C to stop. You can resume later by running this again.
 echo.
