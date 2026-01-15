@@ -107,6 +107,7 @@ def ckpt_path(seed, mode, task, epoch):
 def save_ckpt(path, model, task, epoch):
     torch.save({
         "model": model.state_dict(),
+        "optimizer": model.optimizer.state_dict(),
         "task": task,
         "epoch": epoch,
         "torch_rng": torch.get_rng_state(),
@@ -137,10 +138,11 @@ def run(seed, data, mode):
     if ckpt:
         s = torch.load(ckpt, map_location=DEVICE , weights_only=False)
         model.load_state_dict(s["model"])
+        if "optimizer" in s:
+            model.optimizer.load_state_dict(s["optimizer"])
         start_task = s["task"]
         start_epoch = s["epoch"]+1
-        torch.set_rng_state(s["torch_rng"])
-        np.random.set_state(s["np_rng"])
+        torch.set_rng_state(s["torch_rng"].cpu())
         np.random.set_state(s["np_rng"])
         logger.info(f"Resumed {mode} seed {seed} from {start_task} epoch {start_epoch}")
 
