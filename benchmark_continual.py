@@ -143,6 +143,12 @@ def run(seed, data, mode):
         np.random.set_state(s["np_rng"])
         logger.info(f"Resumed {mode} seed {seed} from {start_task} epoch {start_epoch}")
 
+    metrics_store = {
+        "acc_task_a_phase1": 0.0,
+        "acc_task_a_phase2": 0.0,
+        "acc_task_b_phase2": 0.0
+    }
+
     try:
         for task in ['A','B']:
             if task < start_task: continue
@@ -172,8 +178,13 @@ def run(seed, data, mode):
                 save_ckpt(ckpt_path(seed,mode,task,e), model, task, e)
                 
             start_epoch = 0
-            if task=='A' and mode=='airborne':
-                if getattr(model, 'prioritized_buffer', None):
+            
+            # PHASE 1 EVALUATION (After Task A)
+            if task == 'A':
+                logger.info("Evaluating Phase 1 (Post-Task A)...")
+                metrics_store["acc_task_a_phase1"] = evaluate(model, data['A']['test'])
+                # Also save consolidated checkpoint
+                if mode=='airborne' and getattr(model, 'prioritized_buffer', None):
                     model.memory.consolidate(feedback_buffer=model.prioritized_buffer, current_step=1, mode='NORMAL')
                     if DEVICE=='cuda': torch.cuda.empty_cache()
 
@@ -182,11 +193,12 @@ def run(seed, data, mode):
         logger.error(traceback.format_exc())
         raise e
 
-    return {
-        "acc_task_a_phase1": evaluate(model, data['A']['test']),
-        "acc_task_a_phase2": evaluate(model, data['A']['test']),
-        "acc_task_b_phase2": evaluate(model, data['B']['test'])
-    }
+    # PHASE 2 EVALUATION (After Task B)
+    logger.info("Evaluating Phase 2 (Post-Task B)...")
+    metrics_store["acc_task_a_phase2"] = evaluate(model, data['A']['test'])
+    metrics_store["acc_task_b_phase2"] = evaluate(model, data['B']['test'])
+
+    return metrics_store
 
 if __name__ == "__main__":
     data = get_cifar100_split()
