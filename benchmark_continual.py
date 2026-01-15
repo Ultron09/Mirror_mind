@@ -141,6 +141,7 @@ def run(seed, data, mode):
         start_epoch = s["epoch"]+1
         torch.set_rng_state(s["torch_rng"])
         np.random.set_state(s["np_rng"])
+        np.random.set_state(s["np_rng"])
         logger.info(f"Resumed {mode} seed {seed} from {start_task} epoch {start_epoch}")
 
     metrics_store = {
@@ -148,6 +149,23 @@ def run(seed, data, mode):
         "acc_task_a_phase2": 0.0,
         "acc_task_b_phase2": 0.0
     }
+
+    # BACKFILL LOGIC: If we resumed from Task B, we missed the Task A evaluation.
+    # We must temporarily load the Task A checkpoint to get the baseline.
+    if start_task > 'A':
+        ckpt_a = ckpt_path(seed, mode, 'A', args.epochs-1)
+        if os.path.exists(ckpt_a):
+            logger.info(f"Backfilling Phase 1 Metrics from {ckpt_a}...")
+            # Save current state (Task B start)
+            current_state = model.state_dict()
+            # Load Task A end
+            a_state = torch.load(ckpt_a, map_location=DEVICE, weights_only=False)
+            model.load_state_dict(a_state['model'])
+            # Evaluate
+            metrics_store["acc_task_a_phase1"] = evaluate(model, data['A']['test'])
+            # Restore Task B start
+            model.load_state_dict(current_state)
+            logger.info(f"Backfill Complete. Phase 1 Acc: {metrics_store['acc_task_a_phase1']:.2f}%")
 
     try:
         for task in ['A','B']:
