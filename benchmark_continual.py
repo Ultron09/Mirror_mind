@@ -8,8 +8,11 @@ import os
 import argparse
 import logging
 import sys
+import logging
+import sys
 import time
 import traceback
+from tqdm import tqdm # VISIBILITY: Progress bar
 
 from airbornehrs.core import AdaptiveFramework, AdaptiveFrameworkConfig
 
@@ -146,8 +149,22 @@ def run(seed, data, mode):
             current_start_epoch = start_epoch if task==start_task else 0
              
             for e in range(current_start_epoch, args.epochs):
-                for x,y in data[task]['train']:
-                    model.train_step(x.to(DEVICE), target_data=y.to(DEVICE))
+                logger.info(f"[{mode.upper()}-{seed}] Task {task}: Epoch {e+1}/{args.epochs} started...")
+                
+                # VISIBILITY: Progress Bar
+                pbar = tqdm(data[task]['train'], desc=f"Ep {e+1}/{args.epochs}", unit="batch")
+                epoch_loss = 0.0
+                
+                for i, (x, y) in enumerate(pbar):
+                    metrics = model.train_step(x.to(DEVICE), target_data=y.to(DEVICE))
+                    
+                    # Update pbar
+                    loss_val = metrics.get('loss', 0.0) if isinstance(metrics, dict) else 0.0
+                    epoch_loss += loss_val
+                    pbar.set_postfix({"loss": f"{loss_val:.4f}"})
+                
+                avg_loss = epoch_loss / len(data[task]['train'])
+                logger.info(f"[{mode.upper()}-{seed}] Task {task}: Epoch {e+1} Done. Avg Loss: {avg_loss:.4f}")
                 
                 # OPTIMIZATION: Aggressive VRAM cleanup for 3050
                 if DEVICE=='cuda': torch.cuda.empty_cache()
