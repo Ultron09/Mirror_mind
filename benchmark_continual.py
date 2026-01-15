@@ -132,7 +132,7 @@ def run(seed, data, mode):
     start_task, start_epoch = 'A', 0
     ckpt = load_latest_ckpt(seed, mode)
     if ckpt:
-        s = torch.load(ckpt, map_location=DEVICE)
+        s = torch.load(ckpt, map_location=DEVICE , weights_only=False)
         model.load_state_dict(s["model"])
         start_task = s["task"]
         start_epoch = s["epoch"]+1
