@@ -95,7 +95,10 @@ def evaluate(model, loader):
     with torch.no_grad():
         for x,y in loader:
             x,y = x.to(DEVICE), y.to(DEVICE)
-            _,p = torch.max(model(x),1)
+            output = model(x)
+            if isinstance(output, tuple):
+                output = output[0] # Unpack (logits, uncertainty, modifiers)
+            _,p = torch.max(output,1)
             t+=y.size(0); c+=(p==y).sum().item()
     return 100*c/t
 
