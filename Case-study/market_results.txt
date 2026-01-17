@@ -1,0 +1,14 @@
+WALL STREET 2025 BACKTEST RESULTS
+=================================
+STRATEGY: Buy & Hold
+  Final Balance: $11,831.56
+  Return (PnL):  +18.32%
+
+STRATEGY: Legacy AI
+  Final Balance: $10,938.23
+  Return (PnL):  +9.38%
+
+STRATEGY: Airborne AI
+  Final Balance: $10,299.86
+  Return (PnL):  +3.00%
+

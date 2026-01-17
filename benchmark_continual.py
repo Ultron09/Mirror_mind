@@ -1,18 +1,21 @@
+import os
+import sys
+import argparse
+import random
+import numpy as np
 import torch
 import torch.nn as nn
-from torchvision import datasets, transforms
+import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
-import numpy as np
+from torchvision import datasets, transforms
+import torch.backends.cudnn as cudnn
+from tqdm import tqdm
+import logging
 import json
-import os
-import argparse
-import logging
-import sys
-import logging
-import sys
 import time
 import traceback
-from tqdm import tqdm # VISIBILITY: Progress bar
+# CRITICAL: Force use of local airbornehrs package (ignore pip installed version)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from airbornehrs.core import AdaptiveFramework, AdaptiveFrameworkConfig
 
@@ -133,8 +136,13 @@ def run(seed, data, mode):
     else:
         cfg.memory_type='hybrid'; cfg.enable_consciousness=True
         cfg.use_prioritized_replay=True; cfg.si_lambda=1.0
+        # CRITICAL FIXES FOR RETENTION
+        cfg.ewc_lambda = 2000.0  # Balanced Stability (Verified via mini-test)
+        cfg.dream_interval = 2   # Frequency: High
+        cfg.dream_batch_size = 64 # Ratio: 1:1
 
-    model = AdaptiveFramework(ResNetLike(), cfg, device=DEVICE)
+        cfg.use_amp = True # Enable 16-bit precision for speed
+        cfg.compile_model = True # Enable Torch Compiler
 
     start_task, start_epoch = 'A', 0
     ckpt = load_latest_ckpt(seed, mode)

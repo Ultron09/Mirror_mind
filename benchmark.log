@@ -1,0 +1,16 @@
+2026-01-16 11:47:44,022 - INFO - 🧠 Unified Memory Handler initialized (method=hybrid, ogd=False).
+2026-01-16 11:47:44,025 - INFO - [BRAIN] Unified Memory System Online (hybrid, Graph=False)
+2026-01-16 11:47:44,040 - INFO - [CONSCIOUSNESS] Self-Awareness Module Active
+2026-01-16 11:47:44,055 - INFO - [ADAPTER] Optimizer attached to 5 adapters.
+2026-01-16 11:47:44,061 - INFO - [AUTONOMIC] Neural Health Monitor Active
+2026-01-16 11:47:44,067 - INFO - AirborneHRS Framework Initialized (V8.0 Sentient Edition)
+2026-01-16 11:47:45,314 - INFO - 🧠 Consolidating Memory (Step 0, Mode NORMAL)...
+2026-01-16 11:47:46,160 - INFO - 🔒 Consolidation complete.
+2026-01-16 16:16:45,478 - INFO - [BASE-42] Task A: Epoch 1/100 started...
+2026-01-16 16:16:45,511 - ERROR - CRASH RECOVERED — checkpoint saved
+2026-01-16 16:16:45,513 - ERROR - Traceback (most recent call last):
+  File "C:\Users\surya\In Use\Personal\UltOrg\Airborne.HRS\MirrorMind\benchmark_continual.py", line 196, in run
+    metrics = model.train_step(x.to(DEVICE), target_data=y.to(DEVICE))
+              ^^^^^
+NameError: name 'model' is not defined. Did you mean: 'mode'?
+

@@ -64,7 +64,9 @@ class AdaptiveFrameworkConfig:
     feedback_buffer_size: int = 10000
     evaluation_frequency: int = 10
     # How often to run dreaming/replay (in steps).
-    dream_interval: int = 10
+    # How often to run dreaming/replay (in steps).
+    dream_interval: int = 2 # More Frequent (was 10)
+    dream_batch_size: int = 32 # Larger (was hardcoded 16)
     
     # Optimization
     compile_model: bool = True 
@@ -108,7 +110,8 @@ class AdaptiveFrameworkConfig:
     
     # SI Parameters (Restored)
     importance_method: str = 'ewc'  # 'ewc', 'si', or 'hybrid'
-    si_lambda: float = 1.0
+    si_lambda: float = 1.0 # For SI
+    ewc_lambda: float = 5000.0 # [FIX] Boost EWC strength significantly
     si_xi: float = 1e-3
     use_graph_memory: bool = False # [V9.0] Graph-Based Episodic Memory
     graph_memory_threshold: float = 0.85
@@ -164,7 +167,10 @@ class AdaptiveFrameworkConfig:
             memory_type='hybrid',
             use_prioritized_replay=True,
             adaptive_lambda=True,
-            enable_consciousness=True
+            enable_consciousness=True,
+            ewc_lambda=5000.0,
+            dream_interval=2,
+            dream_batch_size=32
         )
 
 
@@ -916,7 +922,7 @@ class AdaptiveFramework(nn.Module):
              pass
              
         if enable_dream and self.config.enable_dreaming and (self.step_count % self.config.dream_interval == 0):
-             self.learn_from_buffer(batch_size=16)
+             self.learn_from_buffer(batch_size=getattr(self.config, 'dream_batch_size', 32))
              
         if enable_dream: self.step_count += 1
             

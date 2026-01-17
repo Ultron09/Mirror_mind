@@ -1,0 +1,12 @@
+SECURITY AUDIT RESULTS
+======================
+
+SYSTEM: Legacy AI (Standard)
+  Audit 1 (Day): 55.40%
+  Audit 2 (Day-Retained): 61.80%
+  Audit 2 (Night-New):    33.80%
+
+SYSTEM: Sentinel AI (Airborne)
+  Audit 1 (Day): 77.80%
+  Audit 2 (Day-Retained): 88.40%
+  Audit 2 (Night-New):    62.60%
