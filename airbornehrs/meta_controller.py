@@ -185,9 +185,23 @@ class DynamicLearningRateScheduler:
             # But here output is deterministic multiplier.
             # We treat it as regression to "Optimal Multiplier".
             # Heuristic: If reward > 0, we wanted this action. If < 0, we wanted opposite.
-            # This is hard to train online without batches.
-            # Simplified: Just run forward.
-            pass
+            # [V8.1] Activated: Train the learned optimizer policy
+            if abs(reward) > 1e-6 and self.last_state is not None:
+                try:
+                    self.policy_optim.zero_grad()
+                    # Recompute action with gradients enabled
+                    action = self.policy(self.last_state)
+                    # Simple reward-weighted loss: push multiplier toward 1.0 if bad, keep if good
+                    # If reward > 0 (loss decreased), reinforce current action
+                    # If reward < 0 (loss increased), push toward 1.0 (neutral)
+                    target = torch.tensor([[1.0]]) if reward < 0 else action.detach()
+                    pg_loss = torch.nn.functional.mse_loss(action, target) * abs(reward)
+                    pg_loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 1.0)
+                    self.policy_optim.step()
+                    self.policy.reset_state()  # Reset LSTM hidden after update
+                except Exception:
+                    pass  # Graceful fallback if training fails
             
         # 3. Forward
         with torch.no_grad(): # Don't backprop through main loop yet

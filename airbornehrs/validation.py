@@ -1,3 +1,4 @@
+
 """
 Configuration Validation Module
 ================================
@@ -217,6 +218,9 @@ def validate_config(config: AdaptiveFrameworkConfig, raise_on_error: bool = True
 
 # Example usage
 if __name__ == "__main__":
+    import torch
+    import torch.nn as nn
+    
     # Test valid config
     print("Testing valid config...")
     config = AdaptiveFrameworkConfig()
@@ -233,3 +237,148 @@ if __name__ == "__main__":
         validate_config(bad_config)
     except ValueError as e:
         print(f"Caught expected error: {e}")
+    
+    # ==================== INTEGRATION TESTS ====================
+    print("\n" + "=" * 60)
+    print("INTEGRATION TESTS (V8.1 Fixes)")
+    print("=" * 60)
+    
+    from airbornehrs.core import AdaptiveFramework
+    
+    def test_feedback_buffer_population():
+        """Test 1: Verify feedback_buffer is populated during training."""
+        print("\n[TEST 1] Feedback Buffer Population...")
+        model = nn.Linear(10, 5)
+        cfg = AdaptiveFrameworkConfig(
+            model_dim=10, 
+            enable_consciousness=False, 
+            enable_dreaming=False,
+            enable_health_monitor=False
+        )
+        framework = AdaptiveFramework(model, cfg)
+        
+        # Run 5 training steps
+        for _ in range(5):
+            x = torch.randn(2, 10)
+            y = torch.randn(2, 5)
+            framework.train_step(x, target_data=y)
+        
+        buffer_len = len(framework.feedback_buffer.buffer)
+        assert buffer_len == 5, f"Expected 5 items in buffer, got {buffer_len}"
+        print(f"   ✓ Buffer has {buffer_len} items (expected: 5)")
+        return True
+    
+    def test_meta_controller_invoked():
+        """Test 2: Verify meta_controller.adapt() is called."""
+        print("\n[TEST 2] Meta-Controller Invocation...")
+        model = nn.Linear(10, 5)
+        cfg = AdaptiveFrameworkConfig(
+            model_dim=10, 
+            enable_consciousness=False, 
+            enable_dreaming=False,
+            enable_health_monitor=False,
+            use_reptile=True
+        )
+        framework = AdaptiveFramework(model, cfg)
+        
+        initial_step = framework.meta_controller.step_count
+        
+        # Run 3 training steps with meta enabled
+        for _ in range(3):
+            x = torch.randn(2, 10)
+            y = torch.randn(2, 5)
+            framework.train_step(x, target_data=y, meta_step=True)
+        
+        final_step = framework.meta_controller.step_count
+        assert final_step == initial_step + 3, f"Meta-controller steps: {final_step}, expected {initial_step + 3}"
+        print(f"   ✓ Meta-controller step count: {final_step} (advanced by 3)")
+        return True
+    
+    def test_consolidation_triggers():
+        """Test 3: Verify memory consolidation can be triggered."""
+        print("\n[TEST 3] Memory Consolidation Trigger...")
+        model = nn.Linear(10, 5)
+        cfg = AdaptiveFrameworkConfig(
+            model_dim=10, 
+            enable_consciousness=False, 
+            enable_dreaming=False,
+            enable_health_monitor=False,
+            memory_type='hybrid',
+            consolidation_min_interval=5,  # Low for testing
+            consolidation_max_interval=10
+        )
+        framework = AdaptiveFramework(model, cfg)
+        
+        # Populate buffer first
+        for _ in range(10):
+            x = torch.randn(2, 10)
+            y = torch.randn(2, 5)
+            framework.train_step(x, target_data=y)
+        
+        # Manual consolidation call
+        initial_counter = framework.memory.consolidation_counter
+        framework.memory.consolidate(
+            feedback_buffer=framework.feedback_buffer,
+            current_step=100,
+            z_score=0.0,
+            mode='NORMAL'
+        )
+        
+        final_counter = framework.memory.consolidation_counter
+        assert final_counter == initial_counter + 1, f"Consolidation counter didn't increment"
+        
+        # Check penalty is now potentially non-zero (depends on whether omega accumulated)
+        penalty = framework.memory.compute_penalty()
+        print(f"   ✓ Consolidation triggered (counter: {initial_counter} -> {final_counter})")
+        print(f"   ✓ Memory penalty after consolidation: {penalty.item():.6f}")
+        return True
+    
+    def test_dreaming_works():
+        """Test 4: Verify dreaming (learn_from_buffer) works with data."""
+        print("\n[TEST 4] Dreaming (Replay) Functionality...")
+        model = nn.Linear(10, 5)
+        cfg = AdaptiveFrameworkConfig(
+            model_dim=10, 
+            enable_consciousness=False, 
+            enable_dreaming=True,
+            dream_interval=1,  # Dream every step
+            enable_health_monitor=False
+        )
+        framework = AdaptiveFramework(model, cfg)
+        
+        # Populate buffer with 15+ items (minimum 10 required for dreaming)
+        for _ in range(15):
+            x = torch.randn(2, 10)
+            y = torch.randn(2, 5)
+            framework.train_step(x, target_data=y, enable_dream=False)
+        
+        buffer_len = len(framework.feedback_buffer.buffer)
+        assert buffer_len >= 10, f"Buffer needs 10+ items for dreaming, got {buffer_len}"
+        
+        # Now trigger dreaming explicitly
+        framework.learn_from_buffer(batch_size=8, num_epochs=1)
+        print(f"   ✓ Dreaming executed with {buffer_len} items in buffer")
+        return True
+    
+    # Run all integration tests
+    tests = [
+        test_feedback_buffer_population,
+        test_meta_controller_invoked,
+        test_consolidation_triggers,
+        test_dreaming_works,
+    ]
+    
+    passed = 0
+    failed = 0
+    for test_fn in tests:
+        try:
+            if test_fn():
+                passed += 1
+        except Exception as e:
+            print(f"   ✗ FAILED: {e}")
+            failed += 1
+    
+    print("\n" + "=" * 60)
+    print(f"RESULTS: {passed} passed, {failed} failed")
+    print("=" * 60)
+

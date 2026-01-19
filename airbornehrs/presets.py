@@ -93,6 +93,7 @@ class Preset:
     importance_method: str = 'ewc'
     si_lambda: float = 1.0
     si_xi: float = 1e-3
+    ewc_lambda: float = 0.4  # EWC regularization strength
     
     # SOTA Unified Memory System (V7.0)
     memory_type: str = 'hybrid'
@@ -147,6 +148,7 @@ class Preset:
     world_model_plasticity_gamma: float = 1.0
     enable_health_monitor: bool = True
     health_check_interval: int = 20
+    enable_performance_monitor: bool = False  # [V8.1] Direct weight editing (experimental)
     
     def merge(self, other: 'Preset') -> 'Preset':
         """Merge another preset into this one (other overwrites self)."""

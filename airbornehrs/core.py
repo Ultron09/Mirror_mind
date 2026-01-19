@@ -156,6 +156,7 @@ class AdaptiveFrameworkConfig:
     world_model_plasticity_gamma: float = 1.0 # [V9.2] Plasticity Gamma
     enable_health_monitor: bool = True
     health_check_interval: int = 20 # Every 20 steps
+    enable_performance_monitor: bool = False  # [V8.1] Direct weight editing via PerformanceMonitor
 
     @classmethod
     def production(cls):
@@ -405,7 +406,7 @@ class AdaptiveFramework(nn.Module):
             method=getattr(config, 'memory_type', 'hybrid'),
             si_lambda=getattr(config, 'si_lambda', 1.0),
             si_xi=getattr(config, 'si_xi', 1e-3),
-            ewc_lambda=0.4,
+            ewc_lambda=getattr(config, 'ewc_lambda', 0.4),
             consolidation_criterion=getattr(config, 'consolidation_criterion', 'hybrid'),
             use_graph_memory=getattr(config, 'use_graph_memory', False),
             graph_threshold=getattr(config, 'graph_memory_threshold', 0.85),
@@ -494,6 +495,12 @@ class AdaptiveFramework(nn.Module):
             from .health_monitor import NeuralHealthMonitor
             self.health_monitor = NeuralHealthMonitor(self.model)
             self.logger.info("[AUTONOMIC] Neural Health Monitor Active")
+
+        # [V8.1] Performance Monitor for direct weight adaptation
+        self.performance_monitor = None
+        if getattr(self.config, 'enable_performance_monitor', False):
+            self.performance_monitor = PerformanceMonitor(self.model, self.config, self.device)
+            self.logger.info("[CORTEX] Performance Monitor Active (Direct Weight Editing)")
 
         # Meta-Controller (Reptile)
         self.meta_controller = MetaController(self, MetaControllerConfig(
@@ -859,7 +866,21 @@ class AdaptiveFramework(nn.Module):
                     z_score = consciousness_metrics.get('surprise', 0.0)
                     self.memory.replay_buffer.add(snapshot, z_score=z_score)
 
+        # [V8.1] CRITICAL FIX: Populate feedback_buffer for dreaming/consolidation
+        # This must be OUTSIDE the self.memory block to always run
+        if self.feedback_buffer and record_stats:
+            loss_val = loss.item() if hasattr(loss, 'item') else float(loss)
+            self.feedback_buffer.add(
+                input_args=model_inputs,
+                input_kwargs={},
+                output=logits.detach(),
+                target=target_data.detach(),
+                reward=-loss_val,  # Negative loss as reward signal
+                loss=loss_val
+            )
+
         total_loss = loss + reg_loss
+
         
         # 5. Backward Pass
         # Retain graph for meta-optimization if needed
@@ -915,16 +936,55 @@ class AdaptiveFramework(nn.Module):
             
         if self.memory:
             self.memory.accumulate_path(param_before)
+        
+        # [V8.1] Direct Weight Adaptation via PerformanceMonitor
+        if self.performance_monitor and hasattr(self, 'current_modifiers') and self.current_modifiers is not None:
+            prev_loss = getattr(self, '_last_loss_val', loss.item())
+            self.performance_monitor.adapt_weights(
+                current_loss=loss.item(),
+                previous_loss=prev_loss,
+                activations={
+                    'affine_modifiers': self.current_modifiers,
+                    'telemetry_buffer': self.telemetry_buffer,
+                    'layer_map': getattr(self, 'layer_map', {})
+                }
+            )
             
         # 9. Meta-Learning & Dreaming (V7.0 Restoration)
         if meta_step and self.meta_controller:
-             # (Simplified meta-step logic for V8.0 to avoid clutter, but keeping the hook)
-             pass
-             
+            # [V8.1] Full Meta-Controller Integration - Reptile, LR Scheduling, Curriculum
+            prev_loss = getattr(self, '_last_loss_val', loss.item())
+            meta_metrics = self.meta_controller.adapt(
+                loss=loss.item(),
+                performance_metrics={
+                    'loss': loss.item(),
+                    'loss_improvement': prev_loss - loss.item()
+                }
+            )
+            
         if enable_dream and self.config.enable_dreaming and (self.step_count % self.config.dream_interval == 0):
              self.learn_from_buffer(batch_size=getattr(self.config, 'dream_batch_size', 32))
              
         if enable_dream: self.step_count += 1
+        
+        # [V8.1] Periodic Memory Consolidation (EWC/SI/OGD)
+        if self.memory and self.consolidation_scheduler:
+            z_score = consciousness_metrics.get('surprise', 0.0)
+            should_consolidate, reason = self.consolidation_scheduler.should_consolidate(
+                current_step=self.step_count,
+                z_score=z_score,
+                mode=self.meta_controller.current_mode if self.meta_controller else 'NORMAL',
+                criterion=getattr(self.config, 'consolidation_criterion', 'hybrid')
+            )
+            if should_consolidate:
+                self.memory.consolidate(
+                    feedback_buffer=self.feedback_buffer,
+                    current_step=self.step_count,
+                    z_score=z_score,
+                    mode=self.meta_controller.current_mode if self.meta_controller else 'NORMAL'
+                )
+                self.consolidation_scheduler.record_consolidation(self.step_count)
+                self.logger.info(f"[MEMORY] Auto-consolidation triggered: {reason}")
             
         # [V9.0] Periodic Neural Health Check & Autonomic Repair
         if self.health_monitor and self.step_count % self.config.health_check_interval == 0:

@@ -7,6 +7,15 @@ FIXES:
 1. Reordered OutOfDistributionDetector to prevent NameError.
 2. Added tuple unboxing for AdaptiveFramework compatibility.
 3. Robust shape matching for loss calculation.
+
+⚠️ EXPERIMENTAL MODULE ⚠️
+This module is NOT currently integrated into the core AdaptiveFramework.
+Components like AdaptiveLearningController and SelfImprovementPlanner are
+defined but never invoked in the main training loop.
+
+To integrate, import and instantiate these classes in your training script:
+    from airbornehrs.self_awareness_v2 import HumanLikeSelfAwarenessWrapper
+    awareness = HumanLikeSelfAwarenessWrapper(model)
 """
 
 import torch
