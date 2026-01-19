@@ -144,6 +144,11 @@ def run(seed, data, mode):
         cfg.use_amp = True # Enable 16-bit precision for speed
         cfg.compile_model = True # Enable Torch Compiler
 
+    # CRITICAL: Instantiate the model - wrap ResNetLike with AdaptiveFramework
+    # This was missing and causing NameError when accessing `model`
+    base_net = ResNetLike()
+    model = AdaptiveFramework(base_net, cfg, device=DEVICE)
+
     start_task, start_epoch = 'A', 0
     ckpt = load_latest_ckpt(seed, mode)
     if ckpt:
