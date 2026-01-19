@@ -1071,14 +1071,37 @@ class AdaptiveFramework(nn.Module):
             else: logits = outputs
             
             # Loss Calculation
-            loss = 0.0
+            # Loss Calculation (Universal V2 - Synced with train_step)
+            # 1. Regression / Autoencoder (Shapes match)
             if logits.shape == batch_targets.shape:
                 loss = F.mse_loss(logits.float(), batch_targets.float())
+            
+            # 2. Classification / Sequence
+            elif logits.dim() > batch_targets.dim():
+                # Handle Sequence Classification [Batch, Seq, Vocab] vs [Batch, Seq]
+                if logits.dim() == 3 and batch_targets.dim() == 2:
+                     # Check if Classification (Long) or Regression (Float)
+                     if batch_targets.dtype == torch.long or batch_targets.shape[1] != logits.shape[2]:
+                         # Flatten for CrossEntropy: [B*Seq, Vocab] vs [B*Seq]
+                         loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), batch_targets.reshape(-1))
+                     else:
+                         # Regression: Pool Sequence [B, S, D] -> [B, D] vs [B, D]
+                         pooled_logits = logits.mean(dim=1)
+                         loss = F.mse_loss(pooled_logits.float(), batch_targets.float())
+                
+                # Standard Classification [Batch, C] vs [Batch]
+                elif batch_targets.dim() == 1:
+                     if batch_targets.dtype != torch.long:
+                         batch_targets = batch_targets.long()
+                     loss = F.cross_entropy(logits.view(-1, logits.size(-1)), batch_targets.view(-1))
+                else:
+                     loss = F.mse_loss(logits.float(), batch_targets.float())
+            
+            # 3. Fallback
             else:
-                # Simplified fallback
                 loss = F.mse_loss(logits.float(), batch_targets.float())
             
-            print(f"DEBUG: Dream Loss: {loss.item()}")
+            # print(f"DEBUG: Dream Loss: {loss.item()}")
 
             # [V9.0] Auxiliary Loss (Load Balancing, etc.)
             if hasattr(self.model, 'get_aux_loss'):

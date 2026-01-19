@@ -133,8 +133,10 @@ def run(seed, data, mode):
     cfg = AdaptiveFrameworkConfig(device=DEVICE, learning_rate=0.001)
     if mode == 'base':
         cfg.memory_type='none'; cfg.enable_consciousness=False
+        cfg.enable_dreaming=False; cfg.use_prioritized_replay=False
     else:
         cfg.memory_type='hybrid'; cfg.enable_consciousness=True
+        cfg.enable_dreaming=True
         cfg.use_prioritized_replay=True; cfg.si_lambda=1.0
         # CRITICAL FIXES FOR RETENTION
         cfg.ewc_lambda = 2000.0  # Balanced Stability (Verified via mini-test)
