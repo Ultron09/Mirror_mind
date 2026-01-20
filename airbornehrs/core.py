@@ -934,7 +934,7 @@ class AdaptiveFramework(nn.Module):
         if self.config.use_lookahead:
             self._lookahead_step()
             
-        if self.memory:
+        if self.memory and self.memory.method != 'none':
             self.memory.accumulate_path(param_before)
         
         # [V8.1] Direct Weight Adaptation via PerformanceMonitor
@@ -968,7 +968,7 @@ class AdaptiveFramework(nn.Module):
         if enable_dream: self.step_count += 1
         
         # [V8.1] Periodic Memory Consolidation (EWC/SI/OGD)
-        if self.memory and self.consolidation_scheduler:
+        if self.memory and self.consolidation_scheduler and self.memory.method != 'none':
             z_score = consciousness_metrics.get('surprise', 0.0)
             should_consolidate, reason = self.consolidation_scheduler.should_consolidate(
                 current_step=self.step_count,
@@ -1072,7 +1072,13 @@ class AdaptiveFramework(nn.Module):
             
             # Loss Calculation
             # Loss Calculation (Universal V2 - Synced with train_step)
-            # 1. Regression / Autoencoder (Shapes match)
+            # Supports:
+            # - Vision (Images [B, C, H, W])
+            # - Audio (Spectrograms [B, C, T, F] or Waveforms [B, 1, T])
+            # - Language (Sequences [B, T])
+            # - Tabular (Vectors [B, D])
+            
+            # 1. Regression / Autoencoder / Audio Enhancement (Shapes match)
             if logits.shape == batch_targets.shape:
                 loss = F.mse_loss(logits.float(), batch_targets.float())
             

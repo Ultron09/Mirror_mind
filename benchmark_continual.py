@@ -62,7 +62,7 @@ def get_cifar100_split():
     # 128 is too risky with ResNet + Optimizer + Backprop buffers
     bs = min(args.batch_size, 64) 
     
-    nw = 4 if DEVICE=='cuda' else 0
+    nw = 0 # Laptop Mode: 0 workers prevents freezing
     pm = DEVICE=='cuda'
 
     return {
@@ -140,8 +140,8 @@ def run(seed, data, mode):
         cfg.use_prioritized_replay=True; cfg.si_lambda=1.0
         # CRITICAL FIXES FOR RETENTION
         cfg.ewc_lambda = 2000.0  # Balanced Stability (Verified via mini-test)
-        cfg.dream_interval = 2   # Frequency: High
-        cfg.dream_batch_size = 64 # Ratio: 1:1
+        cfg.dream_interval = 50  # Frequency: Moderate (Laptop Mode)
+        cfg.dream_batch_size = 32 # Ratio: Lower VRAM
 
         cfg.use_amp = True # Enable 16-bit precision for speed
         cfg.compile_model = True # Enable Torch Compiler

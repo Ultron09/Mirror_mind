@@ -1,5 +1,0 @@
-THE COUNCIL OF ALPHAS RESULTS
-=============================
-Final Return: +13.89%
-Final Balance: $11,388.74
-Vote Breakdown: {'Trend': 259, 'Contra': 110, 'Risk': 224}
