@@ -1,4 +1,4 @@
-# MirrorMind Self-Awareness Framework: Implementation Summary
+﻿# ANTARA Self-Awareness Framework: Implementation Summary
 
 ## Overview
 
@@ -59,7 +59,7 @@ A comprehensive, 1000+ line framework providing:
 4. **Multi-Task Learning** - Task weighting by competence
 
 Plus:
-- `MirrorMindWithSelfAwareness` - Drop-in wrapper class
+- `ANTARAWithSelfAwareness` - Drop-in wrapper class
 - `MultiTaskSelfAwareLearner` - Multi-task learning with dynamic weighting
 - `SelfAwarenessHook` - Hook-based awareness injection
 - `training_loop_with_awareness()` - Complete training loop function
@@ -216,9 +216,9 @@ awareness = wrapper.get_awareness_state()
 
 ### Pattern 2: Adaptive Learning (training loop)
 ```python
-from airbornehrs import MirrorMindWithSelfAwareness
+from airbornehrs import ANTARAWithSelfAwareness
 
-aware = MirrorMindWithSelfAwareness(model)
+aware = ANTARAWithSelfAwareness(model)
 
 for batch in loader:
     output = aware(batch['input'])
@@ -398,4 +398,4 @@ This is a **state-of-the-art** implementation that combines:
 **Version**: 2.0 (State-of-the-art)  
 **Status**: Production-Ready ✅  
 **License**: MIT  
-**Framework**: MirrorMind (Airborne HRS)
+**Framework**: ANTARA (Airborne HRS)

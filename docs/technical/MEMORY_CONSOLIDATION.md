@@ -1,8 +1,8 @@
-# Memory Consolidation: From Biology to Deep Learning
+﻿# Memory Consolidation: From Biology to Deep Learning
 
 ## Overview
 
-**Memory Consolidation** is how brains (and now neural networks) convert temporary, unstable memories into permanent, stable ones. MirrorMind integrates three complementary memory systems for robust continual learning:
+**Memory Consolidation** is how brains (and now neural networks) convert temporary, unstable memories into permanent, stable ones. ANTARA integrates three complementary memory systems for robust continual learning:
 
 1. **Semantic Memory** (facts) — Preserved via Elastic Weight Consolidation
 2. **Episodic Memory** (events) — Managed via Prioritized Replay Buffer
@@ -40,7 +40,7 @@ During consolidation:
 
 ---
 
-## 2. MirrorMind's Memory Consolidation: Three-Level System
+## 2. ANTARA's Memory Consolidation: Three-Level System
 
 ### Level 1: Semantic Memory (Permanent Facts)
 
@@ -627,5 +627,5 @@ def online_consolidation():
 ---
 
 **Last Updated:** December 24, 2025  
-**Reference:** MirrorMind Framework v6.1  
+**Reference:** ANTARA Framework v6.1  
 **Status:** Complete with implementation and experiments

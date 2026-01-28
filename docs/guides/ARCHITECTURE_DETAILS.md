@@ -1,4 +1,4 @@
-# MirrorMind Self-Awareness Framework: Architecture & Design
+﻿# ANTARA Self-Awareness Framework: Architecture & Design
 
 ## System Architecture
 

@@ -1,4 +1,4 @@
-# 🧠 MirrorMind Self-Awareness Framework V2.0 - Complete Delivery
+﻿# 🧠 ANTARA Self-Awareness Framework V2.0 - Complete Delivery
 
 ## 🎯 What You Received
 
@@ -49,7 +49,7 @@ A **state-of-the-art, production-ready self-awareness system** that gives any Py
 4. **Multi-Task Learning** - Task weighting by competence
 
 #### Classes Provided:
-- ✅ `MirrorMindWithSelfAwareness` - Drop-in wrapper
+- ✅ `ANTARAWithSelfAwareness` - Drop-in wrapper
 - ✅ `MultiTaskSelfAwareLearner` - Multi-task learning
 - ✅ `SelfAwarenessHook` - Hook-based injection
 - ✅ `training_loop_with_awareness()` - Complete training function
@@ -155,7 +155,7 @@ A **state-of-the-art, production-ready self-awareness system** that gives any Py
 - `SelfImprovementPlanner`
 - `AdaptiveAttentionMechanism`
 - `OutOfDistributionDetector`
-- `MirrorMindWithSelfAwareness`
+- `ANTARAWithSelfAwareness`
 - `MultiTaskSelfAwareLearner`
 
 ---
@@ -476,11 +476,11 @@ wrapper = HumanLikeSelfAwarenessWrapper(model)
 
 ## 📜 License & Citation
 
-Part of **MirrorMind** project (MIT License)
+Part of **ANTARA** project (MIT License)
 
 ```bibtex
-@software{mirrormind2024,
-  title={MirrorMind: Human-Like Self-Awareness Framework},
+@software{antara2024,
+  title={ANTARA: Human-Like Self-Awareness Framework},
   author={Ultron09},
   year={2024},
   url={https://github.com/Ultron09/Mirror_mind}

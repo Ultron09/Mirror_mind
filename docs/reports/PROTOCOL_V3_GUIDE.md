@@ -1,11 +1,11 @@
-"""
+﻿"""
 ================================================================================
 PROTOCOL_V3_GUIDE: Comprehensive Testing & Validation Framework
 ================================================================================
 
 This guide explains how to run Protocol_v3 and interpret results.
 
-GOAL: Prove MirrorMind is superior to MIT's Seal and all self-evolving AI
+GOAL: Prove ANTARA is superior to MIT's Seal and all self-evolving AI
 frameworks by a significant margin (>15% superiority across all metrics).
 
 ================================================================================
@@ -41,7 +41,7 @@ PROTOCOL_V3: MIRRORMINĎ STATE-OF-THE-ART EVALUATION FRAMEWORK
 
 MISSION:
 ========
-Prove MirrorMind achieves state-of-the-art performance across all critical
+Prove ANTARA achieves state-of-the-art performance across all critical
 dimensions of continual learning, meta-learning, consciousness, and adaptation.
 
 Specific Goal: Beat MIT's Seal by >15% on all major metrics
@@ -82,7 +82,7 @@ Protocol_v3 consists of 9 complementary test suites:
    │   ├─ Surprise: How novel is example?
    │   └─ Importance: How critical to learn?
    ├─ Target: Metrics aligned with performance
-   └─ Why: Consciousness is unique MirrorMind advantage
+   └─ Why: Consciousness is unique ANTARA advantage
 
 5. DOMAIN SHIFT TEST
    ├─ What: Rapid adaptation to sudden distribution shifts
@@ -178,7 +178,7 @@ After running Protocol_v3, you'll get:
    - ✓ Good: Beats SOTA baseline
    - ⚠️ Needs Work: Below SOTA
 
-3. CONSCIOUSNESS METRICS (Unique to MirrorMind!)
+3. CONSCIOUSNESS METRICS (Unique to ANTARA!)
    Alignment between consciousness and performance
    
    Interpretation:
@@ -220,14 +220,14 @@ If Protocol_v3 shows:
    - Domain Shift: <50 steps recovery
    - Consciousness: Metrics aligned with performance
    
-   → MirrorMind is SUPERIOR to all SOTA frameworks
+   → ANTARA is SUPERIOR to all SOTA frameworks
 
 ✅ GOOD (Beats SOTA):
    - Continual Learning: >85% accuracy
    - Few-Shot: >78% on 5-shot
    - Meta-Learning: >15% improvement
    
-   → MirrorMind is competitive with best systems
+   → ANTARA is competitive with best systems
 
 ⚠️ NEEDS IMPROVEMENT:
    - If any metric below MIT Seal's baseline
@@ -318,7 +318,7 @@ NEXT STEPS:
 After validating superiority with Protocol_v3:
 
 1. Write research paper with results
-   - Title: "MirrorMind: Self-Aware Continual Learning Outperforms SOTA"
+   - Title: "ANTARA: Self-Aware Continual Learning Outperforms SOTA"
    - Sections: Introduction, Methods, Experiments, Results, Conclusion
    - Include Protocol_v3 results as primary evidence
 
@@ -341,16 +341,16 @@ After validating superiority with Protocol_v3:
 SUMMARY:
 ========
 
-Protocol_v3 provides comprehensive, SOTA-competitive evaluation of MirrorMind:
+Protocol_v3 provides comprehensive, SOTA-competitive evaluation of ANTARA:
 
 ✅ 9 test suites covering all critical dimensions
 ✅ Comparison to MIT Seal and other SOTA frameworks
-✅ Novel consciousness metrics (unique to MirrorMind!)
+✅ Novel consciousness metrics (unique to ANTARA!)
 ✅ Integration with all 10 presets for fair comparison
 ✅ Production-ready latency and memory measurements
 ✅ Detailed reporting and regression detection
 
-MirrorMind's unique advantages:
+ANTARA's unique advantages:
 1. Consciousness layer (measurable self-awareness)
 2. Hybrid EWC+SI memory consolidation
 3. Reptile-based meta-learning
@@ -358,7 +358,7 @@ MirrorMind's unique advantages:
 5. Adaptive regularization and dynamic scheduling
 
 When Protocol_v3 shows >15% superiority across metrics,
-MirrorMind is definitively superior to MIT's Seal.
+ANTARA is definitively superior to MIT's Seal.
 
 ================================================================================
 """
@@ -395,7 +395,7 @@ class YourModel(nn.Module):
 
 model = YourModel()
 
-# Wrap in MirrorMind with production preset
+# Wrap in ANTARA with production preset
 framework = AdaptiveFramework(model, config=PRESETS.production())
 
 # Run Protocol_v3
@@ -488,10 +488,10 @@ report = suite.benchmark_all_presets(framework)
 analysis = CompetitiveAnalysis(report)
 comparison = analysis.generate_comparison_matrix()
 
-print("MirrorMind vs MIT Seal:")
+print("ANTARA vs MIT Seal:")
 for metric, details in comparison['metrics'].items():
     print(f"  {metric}:")
-    print(f"    MirrorMind: {details['mirrorminď_value']:.4f}")
+    print(f"    ANTARA: {details['mirrorminď_value']:.4f}")
     print(f"    MIT Seal: {details['sota_baseline']:.4f}")
     print(f"    Superiority: +{details['margin_percent']:.1f}%")
     print(f"    Status: {'✅ BEATS TARGET' if details['beats_target'] else '✓ BEATS SOTA' if details['beats_sota'] else '⚠️ Below SOTA'}")

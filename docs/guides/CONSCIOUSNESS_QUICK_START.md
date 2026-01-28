@@ -1,4 +1,4 @@
-# MirrorMind v7.0 - Consciousness Edition
+﻿# ANTARA v7.0 - Consciousness Edition
 ## Quick Start Guide
 
 ### Enable Consciousness (Default)
@@ -126,7 +126,7 @@ loss = criterion(pred, y)
 ### Version Info
 
 ```
-MirrorMind v7.0 (Consciousness Edition)
+ANTARA v7.0 (Consciousness Edition)
 Unified Memory: SI + EWC (hybrid)
 Self-Awareness: Active
 Meta-Learning: Reptile

@@ -1,4 +1,4 @@
-# QUICK REFERENCE CARD: v1.1.1 "Sentient" Edition
+﻿# QUICK REFERENCE CARD: v1.1.1 "Sentient" Edition
 
 **Print this card and keep it visible while working.**
 
@@ -87,7 +87,7 @@ Timeline:  Week 3-6 (parallel with Tier 2)
 ```
 Datasets:  CIFAR-100 Split, Permuted MNIST, Omniglot
 Baselines: Avalanche, Learn2Learn, Ray RLlib
-Output:    Comparison table showing where MirrorMind wins
+Output:    Comparison table showing where ANTARA wins
 Status:    ⏸️ Ready to execute
 Timeline:  Week 3-6
 ```
@@ -110,7 +110,7 @@ Status:    ⏸️ Ready to execute
 ```
 Videos:
 1. What is catastrophic forgetting? (5 min)
-2. How to use MirrorMind (10 min)
+2. How to use ANTARA (10 min)
 3. Advanced features (15 min)
 4. When to use vs alternatives (20 min)
 

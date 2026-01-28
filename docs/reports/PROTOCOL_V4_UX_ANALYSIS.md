@@ -1,6 +1,6 @@
-# Protocol V4: User Experience Analysis
+﻿# Protocol V4: User Experience Analysis
 **Date:** 2025-12-24  
-**Framework:** MirrorMind + Protocol V4  
+**Framework:** ANTARA + Protocol V4  
 **Test:** Real-world usage scenarios for 4 domain types
 
 ---
@@ -55,7 +55,7 @@ proto.run_virtual_employee_training(episodes=25)
 **What Users Love:**
 - ✅ No complex ML boilerplate
 - ✅ Clear state transitions based on experience
-- ✅ Integrates with MirrorMind's EWC for memory consolidation
+- ✅ Integrates with ANTARA's EWC for memory consolidation
 - ✅ Output is JSON-serializable and loggable
 
 **Friction Points:**

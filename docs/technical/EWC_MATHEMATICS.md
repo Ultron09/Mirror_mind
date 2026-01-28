@@ -1,4 +1,4 @@
-# Elastic Weight Consolidation (EWC): Complete Mathematical Guide
+﻿# Elastic Weight Consolidation (EWC): Complete Mathematical Guide
 
 ## Overview
 
@@ -61,7 +61,7 @@ The Fisher Information Matrix is the covariance of the gradient:
 
 $$F = \mathbb{E}_{(x,y) \sim D}\left[\nabla_\theta \log p(y|x) \cdot \nabla_\theta \log p(y|x)^T\right]$$
 
-For a diagonal approximation (used in MirrorMind):
+For a diagonal approximation (used in ANTARA):
 
 $$F_i \approx \mathbb{E}_{(x,y) \sim D}\left[\left(\frac{\partial \log p(y|x)}{\partial \theta_i}\right)^2\right]$$
 
@@ -176,13 +176,13 @@ $$L_C(\theta) + \frac{\lambda}{2}\left[\sum_i F_{A,i}(\theta_i - \theta^*_{A,i})
 
 ---
 
-## 6. Surprise-Driven EWC: MirrorMind Innovation
+## 6. Surprise-Driven EWC: ANTARA Innovation
 
 ### Standard EWC Limitation
 
 Compute Fisher Information on **all** task data → Expensive (O(n) forward-backwards passes)
 
-### MirrorMind Innovation
+### ANTARA Innovation
 
 Compute Fisher Information only when **surprised** (loss increases unexpectedly):
 
@@ -277,7 +277,7 @@ How often to recompute Fisher Information:
 
 - **Every batch:** Expensive, rarely needed
 - **Every task:** Standard approach
-- **When surprised (MirrorMind):** Efficient, more accurate
+- **When surprised (ANTARA):** Efficient, more accurate
 
 ### Diagonal Approximation
 
@@ -365,7 +365,7 @@ for name, param in model.named_parameters():
 
 ---
 
-## 11. Implementation in MirrorMind
+## 11. Implementation in ANTARA
 
 ### Key Class: EWCHandler
 
@@ -483,5 +483,5 @@ fisher_loader = DataLoader(data, batch_size=fisher_batch_size)
 ---
 
 **Last Updated:** December 24, 2025  
-**Reference:** MirrorMind Framework v6.1  
+**Reference:** ANTARA Framework v6.1  
 **Status:** Complete with proofs and examples

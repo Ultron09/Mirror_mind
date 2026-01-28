@@ -1,4 +1,4 @@
-# Reptile & Meta-Learning: Fast/Slow Weights Mathematics
+﻿# Reptile & Meta-Learning: Fast/Slow Weights Mathematics
 
 ## Overview
 
@@ -198,7 +198,7 @@ Much simpler and **faster to compute**, with only ~5% performance loss.
 | **Ease of Implementation** | Complex | Simple |
 | **Best For** | Research, when compute available | Production, fast iteration |
 
-**MirrorMind uses Reptile** for efficiency and ease of integration.
+**ANTARA uses Reptile** for efficiency and ease of integration.
 
 ---
 
@@ -345,7 +345,7 @@ print(f"Best: α_f={best_params[0]}, α_m={best_params[1]}, K={best_params[2]}")
 
 ---
 
-## 9. Implementation in MirrorMind
+## 9. Implementation in ANTARA
 
 ### MetaController Class
 
@@ -563,5 +563,5 @@ inner_lr = 0.05  # was 0.01
 ---
 
 **Last Updated:** December 24, 2025  
-**Reference:** MirrorMind Framework v6.1  
+**Reference:** ANTARA Framework v6.1  
 **Status:** Complete with full derivations and experiments

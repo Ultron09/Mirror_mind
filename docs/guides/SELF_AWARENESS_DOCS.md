@@ -1,4 +1,4 @@
-# MirrorMind Self-Awareness Framework V2.0
+﻿# ANTARA Self-Awareness Framework V2.0
 
 ## Executive Summary
 
@@ -256,9 +256,9 @@ print(f"Focus areas: {state.prioritized_improvements}")
 
 ### Pattern 2: Adaptive Learning Loop
 ```python
-from integration_guide import MirrorMindWithSelfAwareness
+from integration_guide import ANTARAWithSelfAwareness
 
-aware_model = MirrorMindWithSelfAwareness(base_model)
+aware_model = ANTARAWithSelfAwareness(base_model)
 
 for batch in train_loader:
     output = aware_model(batch['input'])
@@ -541,11 +541,11 @@ The framework operationalizes these metacognitive processes in a computationally
 
 ## License & Citation
 
-This framework is part of the **MirrorMind** project.
+This framework is part of the **ANTARA** project.
 
 ```bibtex
-@software{mirrormind2024,
-  title={MirrorMind: Human-Like Self-Awareness for AI Models},
+@software{antara2024,
+  title={ANTARA: Human-Like Self-Awareness for AI Models},
   author={Ultron09},
   year={2024},
   url={https://github.com/Ultron09/Mirror_mind}

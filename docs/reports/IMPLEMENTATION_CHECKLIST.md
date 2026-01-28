@@ -1,4 +1,4 @@
-# BUG FIX CHECKLIST & IMPLEMENTATION GUIDE
+﻿# BUG FIX CHECKLIST & IMPLEMENTATION GUIDE
 
 ## ✅ COMPLETED FIXES (Applied to Codebase)
 
@@ -134,7 +134,7 @@
 
 ### To validate applied fixes:
 ```bash
-cd /path/to/MirrorMind
+cd /path/to/ANTARA
 python validate_bug_fixes_clean.py
 ```
 

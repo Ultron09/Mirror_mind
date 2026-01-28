@@ -1,4 +1,4 @@
-"""
+﻿"""
 ========================================
 CONSCIOUSNESS-ENABLED SOTA FRAMEWORK
 Final Integration Report
@@ -254,7 +254,7 @@ Training Quality:
 # 8. CONCLUSION
 # ============================================================================
 
-The MirrorMind framework now has **CONSCIOUSNESS** at its core. It is:
+The ANTARA framework now has **CONSCIOUSNESS** at its core. It is:
 
 ✓ **ADAPTIVE**: Learning from every example with online gradient descent
 ✓ **AWARE**: Knowing what to learn through attention & curiosity mechanisms  

@@ -1,10 +1,10 @@
-# MirrorMind: Self-Learning Research Framework
+﻿# ANTARA: Self-Learning Research Framework
 
 > **A reproducible research platform for adaptive meta-learning and model-level introspection**
 
-## 🎯 What is MirrorMind?
+## 🎯 What is ANTARA?
 
-MirrorMind is a research-oriented self-learning framework where:
+ANTARA is a research-oriented self-learning framework where:
 
 - **The Model** = "The Gun" (learns from experience)
 - **The Framework** = "The Stabilizer" (adapts training dynamics to improve learning)
@@ -14,7 +14,7 @@ Think of it as a meta-learning platform: the model learns tasks and the framewor
 
 ### Key Innovation
 
-Instead of just training a model, MirrorMind creates a **feedback loop** where:
+Instead of just training a model, ANTARA creates a **feedback loop** where:
 1. Model makes predictions
 2. Gets feedback from environment
 3. Analyzes its own performance
@@ -28,8 +28,8 @@ Instead of just training a model, MirrorMind creates a **feedback loop** where:
 ### Installation
 
 ```bash
-# Clone or download MirrorMind
-cd MirrorMind
+# Clone or download ANTARA
+cd ANTARA
 
 # Install dependencies
 pip install torch numpy tqdm
@@ -61,7 +61,7 @@ predictions = trainer.predict(X_test)
 ## 📦 Architecture Overview
 
 ```
-MirrorMind Framework
+ANTARA Framework
 ├── SelfLearningFramework.py       ← Core self-learning engine
 ├── AdvancedAdaptation.py          ← Meta-learning & adaptation
 ├── AGITrainer.py                  ← Training orchestrator
@@ -133,7 +133,7 @@ Real-time visualization:
 
 ## 🔄 The Self-Learning Loop
 
-Here's how MirrorMind creates continuous improvement:
+Here's how ANTARA creates continuous improvement:
 
 ```
 1. FORWARD PASS
@@ -368,7 +368,7 @@ for task in tasks:
 
 ## 📊 Monitoring & Visualization
 
-MirrorMind includes built-in monitoring:
+ANTARA includes built-in monitoring:
 
 ### Metrics Dashboard
 ```python
@@ -484,7 +484,7 @@ This framework is suitable for research on:
 - AGI-oriented architectures
 
 Potential papers:
-- "MirrorMind: Self-Learning Neural Networks via Adaptive Meta-Learning"
+- "ANTARA: Self-Learning Neural Networks via Adaptive Meta-Learning"
 - "Meta-Cognitive Attention for Continuous Self-Improvement"
 - "Curriculum Learning with Dynamic Difficulty Adaptation"
 
@@ -557,7 +557,7 @@ For issues or questions:
 
 ## 🎉 Let's Build AGI Together!
 
-MirrorMind represents a new paradigm in AI development:
+ANTARA represents a new paradigm in AI development:
 - **Self-improving** systems
 - **Adaptive** learning strategies
 - **Introspective** models

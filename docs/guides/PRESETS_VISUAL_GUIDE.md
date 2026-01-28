@@ -1,4 +1,4 @@
-# MirrorMind Presets - Visual Comparison Guide
+﻿# ANTARA Presets - Visual Comparison Guide
 
 ## Preset Comparison Matrix
 

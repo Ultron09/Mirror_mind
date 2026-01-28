@@ -1,4 +1,4 @@
-# MirrorMind Presets System - Implementation Summary
+﻿# ANTARA Presets System - Implementation Summary
 
 ## What Was Created
 
@@ -126,7 +126,7 @@ Each preset is the result of:
 
 ## Quick Selection
 
-**New to MirrorMind?**
+**New to ANTARA?**
 → Use `PRESETS.balanced()`
 
 **Need maximum accuracy?**
@@ -311,7 +311,7 @@ All presets have been validated for:
 ## File Structure
 
 ```
-MirrorMind/
+ANTARA/
 ├── airbornehrs/
 │   ├── __init__.py (updated - exports presets)
 │   └── presets.py (NEW - 715 lines)

@@ -1,6 +1,6 @@
-# 🧠 MirrorMind: Research Results & Analysis
+﻿# 🧠 ANTARA: Research Results & Analysis
 
-This document summarizes the key experiments conducted using the MirrorMind framework (`airbornehrs`). It interprets the generated result plots, explaining the experimental goals, the visual data, and the implications for self-learning AI systems.
+This document summarizes the key experiments conducted using the ANTARA framework (`airbornehrs`). It interprets the generated result plots, explaining the experimental goals, the visual data, and the implications for self-learning AI systems.
 
 ---
 
@@ -24,7 +24,7 @@ To prove that the **Meta-Controller** can adapt a single model to completely dif
 
 ### ✅ Key Takeaway
 
-MirrorMind successfully demonstrates **domain-agnostic meta-learning**, capable of reconfiguring its weights for entirely different sensory inputs in real-time.
+ANTARA successfully demonstrates **domain-agnostic meta-learning**, capable of reconfiguring its weights for entirely different sensory inputs in real-time.
 
 ---
 
@@ -102,7 +102,7 @@ To bridge the reasoning gap between smaller models (like GPT-2) and larger ones 
 
 ### ✅ Key Takeaway
 
-**Plasticity beats Scale.** A smaller model with MirrorMind adaptation can achieve results comparable to larger static models on specific reasoning tasks.
+**Plasticity beats Scale.** A smaller model with ANTARA adaptation can achieve results comparable to larger static models on specific reasoning tasks.
 
 ---
 
@@ -124,7 +124,7 @@ To prove the capability of **Instant Knowledge Acquisition**. The model is given
 
 ### ✅ Key Takeaway
 
-MirrorMind enables **Short-Term Weight Memory**, allowing models to memorize arbitrary data (like secrets or context) instantly without a context window limitation.
+ANTARA enables **Short-Term Weight Memory**, allowing models to memorize arbitrary data (like secrets or context) instantly without a context window limitation.
 
 ---
 
@@ -141,9 +141,9 @@ To evaluate general intelligence using the **ARC (Abstraction and Reasoning Corp
 
 ### 📊 Interpretation
 
-* **Loss Trajectory:** Compares the loss curves of the Base Model (Red) vs. MirrorMind (Green), providing a clear view of stability and convergence differences across tasks.
+* **Loss Trajectory:** Compares the loss curves of the Base Model (Red) vs. ANTARA (Green), providing a clear view of stability and convergence differences across tasks.
 * **Performance Improvement:** A bar chart visualizes the percentage improvement per task (Green = Win, Red = Loss), highlighting specific logical puzzles where adaptation provided a decisive advantage.
-* **Cumulative Win Rate:** Tracks the percentage of tasks where MirrorMind outperformed the static baseline, offering a high-level metric of success.
+* **Cumulative Win Rate:** Tracks the percentage of tasks where ANTARA outperformed the static baseline, offering a high-level metric of success.
 * **Distribution & Rolling Avg:** Statistical plots (Histogram and Rolling Average) reveal the consistency of the improvements and filter out noise from individual task difficulty spikes.
 
 ### ✅ Key Takeaway

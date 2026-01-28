@@ -1,8 +1,8 @@
-# Introspection Loop: Z-Score Monitoring & OOD Detection
+﻿# Introspection Loop: Z-Score Monitoring & OOD Detection
 
 ## Overview
 
-The **Introspection Loop** is MirrorMind's anomaly detection system. It monitors a neural network's internal states and detects when something unexpected happens, then triggers adaptive responses.
+The **Introspection Loop** is ANTARA's anomaly detection system. It monitors a neural network's internal states and detects when something unexpected happens, then triggers adaptive responses.
 
 **Core Components:**
 1. **State Aggregator** — Collects activation statistics
@@ -118,7 +118,7 @@ For each step t:
 | **2 < Z < 3** | 95-99.7% | Anomalous (1 in 20) |
 | **Z > 3** | < 0.3% | Highly anomalous (1 in 300) |
 
-**In MirrorMind:**
+**In ANTARA:**
 - Z > 2.0 → Trigger Fisher Information computation
 - Z > 4.0 → Freeze some weights (emergency mode)
 
@@ -564,5 +564,5 @@ Captures correlations between statistics.
 ---
 
 **Last Updated:** December 24, 2025  
-**Reference:** MirrorMind Framework v6.1  
+**Reference:** ANTARA Framework v6.1  
 **Status:** Complete with theory and implementation examples

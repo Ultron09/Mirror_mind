@@ -1,4 +1,4 @@
-# Guide to the Consciousness v1.1.1 Module ("Sentient" Edition)
+﻿# Guide to the Consciousness v1.1.1 Module ("Sentient" Edition)
 
 **Status:** Implemented | **Version:** 1.1.1 "Sentient"
 **Module:** `airbornehrs.consciousness_v2`
@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-The `consciousness_v2` module provides a high-level cognitive control layer for the MirrorMind framework. Its primary purpose is to analyze the model's performance on a given task and produce a `learning_multiplier` that dynamically adjusts the intensity of the training process.
+The `consciousness_v2` module provides a high-level cognitive control layer for the ANTARA framework. Its primary purpose is to analyze the model's performance on a given task and produce a `learning_multiplier` that dynamically adjusts the intensity of the training process.
 
 It operates by simulating a simplified "emotional" response to the learning process. States like 'curiosity' (high uncertainty) or 'boredom' (low novelty) are used to determine whether to increase or decrease the learning rate for a given batch.
 

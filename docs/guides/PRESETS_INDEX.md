@@ -1,4 +1,4 @@
-# MirrorMind Presets System - Complete Index
+﻿# ANTARA Presets System - Complete Index
 
 ## 🚀 Quick Start (30 seconds)
 
@@ -115,7 +115,7 @@ results = compare_presets('production', 'fast', 'accurate')
 
 ## 📖 Reading Order
 
-1. **New to MirrorMind?**
+1. **New to ANTARA?**
    - Read: PRESETS.md (introduction section)
    - Code: Copy from PRESETS_QUICK_START.py
    - Use: PRESETS.balanced()
@@ -316,7 +316,7 @@ for epoch in range(10):
 ## 📁 File Locations
 
 ```
-MirrorMind/
+ANTARA/
 ├── airbornehrs/
 │   ├── __init__.py (updated - exports presets)
 │   └── presets.py (NEW - core implementation)

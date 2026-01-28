@@ -1,4 +1,4 @@
-# Catastrophic Forgetting: Why Your AI Forgets and How to Fix It
+﻿# Catastrophic Forgetting: Why Your AI Forgets and How to Fix It
 
 **Category:** Machine Learning, Continual Learning, AI Memory  
 **Read Time:** 8 minutes  
@@ -120,7 +120,7 @@ This means: "Learning Task B is fine, but penalize moving weights that were impo
 
 ## EWC in Action: Real Code
 
-Here's how simple it is with **MirrorMind**:
+Here's how simple it is with **ANTARA**:
 
 ```python
 from airbornehrs import AdaptiveFramework, AdaptiveFrameworkConfig
@@ -147,11 +147,11 @@ accuracy_a = evaluate(framework, task_a_test)  # Still ~90%!
 accuracy_b = evaluate(framework, task_b_test)  # ~94%
 ```
 
-That's it. No complex configuration. MirrorMind handles Fisher information calculation, regularization scheduling, and memory consolidation automatically.
+That's it. No complex configuration. ANTARA handles Fisher information calculation, regularization scheduling, and memory consolidation automatically.
 
-## Beyond EWC: The MirrorMind Difference
+## Beyond EWC: The ANTARA Difference
 
-Standard EWC is good, but MirrorMind goes further:
+Standard EWC is good, but ANTARA goes further:
 
 ### 1. Unified Memory System
 - **EWC** (Elastic Weight Consolidation) for weight protection
@@ -174,21 +174,21 @@ The model learns *what it doesn't know*:
 - Periodically "dreams" (replays) old memories
 - Maintains old task performance while learning new ones
 
-## Benchmarks: MirrorMind vs The World
+## Benchmarks: ANTARA vs The World
 
 On standard continual learning benchmarks:
 
-| Benchmark | Baseline | EWC | MirrorMind |
+| Benchmark | Baseline | EWC | ANTARA |
 |-----------|----------|-----|-----------|
 | **Permuted MNIST** (5 tasks) | 62% | 78% | **84%** |
 | **Split CIFAR-100** (10 tasks) | 45% | 58% | **67%** |
 | **Continual MNIST** | 68% | 81% | **88%** |
 
-MirrorMind significantly outperforms standard EWC.
+ANTARA significantly outperforms standard EWC.
 
 ## When Should You Use This?
 
-✅ **Use EWC/MirrorMind if:**
+✅ **Use EWC/ANTARA if:**
 - You need to add new capabilities to deployed models
 - You have data coming in over time (not all at once)
 - Retraining from scratch is too expensive
@@ -210,7 +210,7 @@ The AI industry is moving toward **continual learning systems** that:
 - Remember important knowledge
 - Adapt to new patterns
 
-**EWC and MirrorMind are essential for this future.**
+**EWC and ANTARA are essential for this future.**
 
 ## Try It Yourself
 
@@ -223,7 +223,7 @@ jupyter notebook examples/01_quickstart.ipynb
 ### See It In Action
 The quickstart notebook shows:
 1. Vanilla model forgetting digits (30% accuracy drop)
-2. MirrorMind protecting digits (5% accuracy drop)
+2. ANTARA protecting digits (5% accuracy drop)
 3. Side-by-side comparison charts
 
 ### Deep Dive
@@ -237,7 +237,7 @@ Check out the full documentation for:
 
 1. **Catastrophic forgetting is real** and impacts production AI
 2. **EWC is elegant:** Identify important weights, protect them
-3. **MirrorMind makes it simple:** One-line consolidation, automatic optimization
+3. **ANTARA makes it simple:** One-line consolidation, automatic optimization
 4. **Results are massive:** 83% reduction in forgetting rate
 5. **The future needs this:** Continual learning at scale requires these techniques
 
@@ -247,7 +247,7 @@ Check out the full documentation for:
 
 - **Start learning:** Try the quickstart notebook
 - **Go deeper:** Read the [full documentation](https://github.com/Ultron09/Mirror_mind)
-- **Deploy:** Integrate MirrorMind into your production system
+- **Deploy:** Integrate ANTARA into your production system
 - **Contribute:** Help push continual learning forward
 
 ---
@@ -256,7 +256,7 @@ Check out the full documentation for:
 
 - **Original EWC Paper:** [Elastic Weight Consolidation (Kirkpatrick et al., PNAS 2017)](https://arxiv.org/abs/1612.00796)
 - **Synaptic Intelligence:** [Continual Learning Through Synaptic Intelligence (Zenke et al., ICML 2017)](https://arxiv.org/abs/1703.04200)
-- **MirrorMind Docs:** [github.com/Ultron09/Mirror_mind](https://github.com/Ultron09/Mirror_mind)
+- **ANTARA Docs:** [github.com/Ultron09/Mirror_mind](https://github.com/Ultron09/Mirror_mind)
 - **Continual Learning Survey:** [Three scenarios for continual learning (van de Ven & Tolias, 2019)](https://arxiv.org/abs/1904.07734)
 
 ---
@@ -269,4 +269,4 @@ Check out the full documentation for:
 
 ---
 
-*This article covers Elastic Weight Consolidation (EWC) and how MirrorMind implements it better. If you found this useful, give MirrorMind a star on GitHub!*
+*This article covers Elastic Weight Consolidation (EWC) and how ANTARA implements it better. If you found this useful, give ANTARA a star on GitHub!*

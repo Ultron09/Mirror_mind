@@ -1,4 +1,4 @@
-# Technical Documentation Index
+﻿# Technical Documentation Index
 
 **Location:** `docs/technical/`  
 **Last Updated:** January 5, 2026  
@@ -17,7 +17,7 @@
   - Why catastrophic forgetting happens
   - Fisher Information Matrix (what it is, why it works)
   - EWC formula and mathematical derivation
-  - MirrorMind's surprise-driven optimization
+  - ANTARA's surprise-driven optimization
   - Experimental benchmarks and results
   - Hyperparameter tuning guide
   - Comparison to related methods (SI, MAS, A-GEM)
@@ -166,7 +166,7 @@
 
 ### By Goal
 
-**"I want to understand how MirrorMind prevents forgetting"**
+**"I want to understand how ANTARA prevents forgetting"**
 1. Read: [README.md - Section 4: Memory Consolidation](../README.md#4-memory-consolidation)
 2. Deep dive: [EWC_MATHEMATICS.md](EWC_MATHEMATICS.md)
 3. Context: [MEMORY_CONSOLIDATION.md - Section 3: Semantic Memory](MEMORY_CONSOLIDATION.md#3-semantic-memory-fisher-information-revisited)
@@ -181,7 +181,7 @@
 2. Deep dive: [INTROSPECTION_MATHEMATICS.md](INTROSPECTION_MATHEMATICS.md)
 3. Applications: [INTROSPECTION_MATHEMATICS.md - Section 7: OOD Detection](INTROSPECTION_MATHEMATICS.md#7-ood-detection-via-statistical-monitoring)
 
-**"I want to implement MirrorMind from scratch"**
+**"I want to implement ANTARA from scratch"**
 1. Start: [../guides/GETTING_STARTED.md](../guides/GETTING_STARTED.md)
 2. Implementation: [../guides/IMPLEMENTATION_GUIDE.md](../guides/IMPLEMENTATION_GUIDE.md)
 3. Theory: Read in order:
@@ -346,7 +346,7 @@ After reading these documents, you will understand:
 These documents are updated with each major release:
 
 - **v6.0** → Initial version (September 2025)
-- **v6.1** → Enhanced with MirrorMind integration (December 2025)
+- **v6.1** → Enhanced with ANTARA integration (December 2025)
 - **v1.1.1** → "Sentient" Edition with System 2 Thinking (January 2026, current)
 
 ---

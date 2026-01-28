@@ -1,4 +1,4 @@
-# MirrorMind Self-Awareness Framework: Quick Reference
+﻿# ANTARA Self-Awareness Framework: Quick Reference
 
 ## Import All Components
 
@@ -6,7 +6,7 @@
 from airbornehrs import (
     # Main wrapper
     HumanLikeSelfAwarenessWrapper,
-    MirrorMindWithSelfAwareness,
+    ANTARAWithSelfAwareness,
     
     # Core engines
     MetaCognitiveAwarenessEngine,
@@ -253,8 +253,8 @@ controller = AdaptiveLearningController(
     base_exploration=0.1         # Base exploration ratio
 )
 
-# With MirrorMindWithSelfAwareness
-aware = MirrorMindWithSelfAwareness(
+# With ANTARAWithSelfAwareness
+aware = ANTARAWithSelfAwareness(
     model=model,
     buffer_size=10000            # Awareness history size
 )
@@ -353,7 +353,7 @@ optimizer.param_groups[0]['lr'] = lr  # Adaptive LR
 | `SelfImprovementPlanner` | Learning planning & milestones |
 | `AdaptiveAttentionMechanism` | Priority sampling |
 | `OutOfDistributionDetector` | Novel sample detection |
-| `MirrorMindWithSelfAwareness` | Full integration |
+| `ANTARAWithSelfAwareness` | Full integration |
 | `MultiTaskSelfAwareLearner` | Multi-task learning |
 
 ## Theoretical Concepts
