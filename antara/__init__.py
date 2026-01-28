@@ -1,5 +1,5 @@
 """
-airbornehrs: Production-ready adaptive meta-learning framework
+antara: Production-ready adaptive meta-learning framework
 ==============================================================
 
 A lightweight Python package enabling continuous model learning and improvement
@@ -11,7 +11,7 @@ Key Components:
     - ProductionAdapter: Simplified API for inference with online learning
 """
 
-__version__ = "2.0.7"
+__version__ = "0.0.1"
 __license__ = "MIT"
 __author__ = "Suryaansh Prithvijit Singh"
 

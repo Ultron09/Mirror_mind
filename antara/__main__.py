@@ -3,7 +3,7 @@ ANTARA - Adaptive Neural Telemetry & Research Assistant
 ========================================================
 Advanced Sci-Fi CLI with Detailed Framework Information
 
-Usage: python -m airbornehrs
+Usage: python -m antara
 """
 import sys
 import time
@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Version info
-VERSION = "2.0.7"
+VERSION = "0.0.1"
 FRAMEWORK_NAME = "ANTARA"
 TAGLINE = "Adaptive Neural Telemetry & Research Assistant"
 
@@ -138,14 +138,14 @@ def get_system_info() -> Dict[str, str]:
 def check_modules() -> Dict[str, Tuple[bool, str]]:
     """Verify core modules with detailed error reporting"""
     modules = {
-        "Core Framework": ("airbornehrs.core", "AdaptiveFramework"),
-        "Memory System": ("airbornehrs.memory", "UnifiedMemoryHandler"),
-        "Consciousness": ("airbornehrs.consciousness_v2", "EnhancedConsciousnessCore"),
-        "Meta Controller": ("airbornehrs.meta_controller", "MetaController"),
-        "World Model": ("airbornehrs.world_model", "WorldModel"),
-        "Health Monitor": ("airbornehrs.health_monitor", "NeuralHealthMonitor"),
-        "Adapters": ("airbornehrs.adapters", "AdapterBank"),
-        "MoE Router": ("airbornehrs.moe", "HierarchicalMoE"),
+        "Core Framework": ("antara.core", "AdaptiveFramework"),
+        "Memory System": ("antara.memory", "UnifiedMemoryHandler"),
+        "Consciousness": ("antara.consciousness_v2", "EnhancedConsciousnessCore"),
+        "Meta Controller": ("antara.meta_controller", "MetaController"),
+        "World Model": ("antara.world_model", "WorldModel"),
+        "Health Monitor": ("antara.health_monitor", "NeuralHealthMonitor"),
+        "Adapters": ("antara.adapters", "AdapterBank"),
+        "MoE Router": ("antara.moe", "HierarchicalMoE"),
     }
     
     status = {}
@@ -444,7 +444,7 @@ def create_quickstart():
     if not HAS_RICH:
         return None
     
-    code = '''from airbornehrs import AdaptiveFramework, AdaptiveFrameworkConfig
+    code = '''from antara import AdaptiveFramework, AdaptiveFrameworkConfig
 import torch.nn as nn
 
 # 1. Define your base model

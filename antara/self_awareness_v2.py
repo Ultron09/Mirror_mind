@@ -14,7 +14,7 @@ Components like AdaptiveLearningController and SelfImprovementPlanner are
 defined but never invoked in the main training loop.
 
 To integrate, import and instantiate these classes in your training script:
-    from airbornehrs.self_awareness_v2 import HumanLikeSelfAwarenessWrapper
+    from antara.self_awareness_v2 import HumanLikeSelfAwarenessWrapper
     awareness = HumanLikeSelfAwarenessWrapper(model)
 """
 

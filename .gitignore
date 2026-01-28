@@ -1,5 +1,5 @@
 .pytest_cashe/
-.airbornehrs.egg-info/
+.antara_antara.egg-info/
 checkpoints/
 test_env/
 __pycache__/

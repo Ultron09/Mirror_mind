@@ -1,0 +1,175 @@
+Metadata-Version: 2.4
+Name: airborne-antara
+Version: 0.0.1
+Summary: Production-grade adaptive meta-learning framework for continual model improvement. Implements research DOI: 10.5281/zenodo.17839490.
+Author-email: AirborneHRS Team <friday@airbornehrs.in>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/Ultron09/Mirror_mind
+Project-URL: Documentation, https://github.com/Ultron09/Mirror_mind#readme
+Project-URL: Repository, https://github.com/Ultron09/Mirror_mind.git
+Project-URL: Issues, https://github.com/Ultron09/Mirror_mind/issues
+Project-URL: Research Paper, https://doi.org/10.5281/zenodo.17839490
+Keywords: meta-learning,online-learning,continual-learning,adaptive-optimization,production-ml,automl,pytorch,deep-learning,self-healing-systems,neural-networks,model-monitoring
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Information Technology
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Classifier: Topic :: System :: Monitoring
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch>=2.0.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: matplotlib>=3.7.0
+Requires-Dist: tensorboard>=2.12.0
+Requires-Dist: rich
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Dynamic: license-file
+
+﻿<div align="center">
+<p align="center">
+  <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExM25uN3JsNXpvejc0a3B3NXBucGU4NGd2eWJlYTBwc2xqdWdpejcyNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/foecxPebqfDx5gxQCU/giphy.gif" width="760"/>
+</p>
+# AIRBORNE.HRS
+
+
+### **V2.0.0 // CODENAME: "SYNTHETIC INTUITION"**
+
+[![Architecture](https://img.shields.io/badge/ARCH-POST_TRANSFORMER-000000.svg?style=for-the-badge&logo=pytorch)]()
+[![System](https://img.shields.io/badge/SYSTEM-ADAPTIVE_META_LEARNING-purple.svg?style=for-the-badge)]()
+[![Status](https://img.shields.io/badge/Status-PRODUCTION_READY-green.svg?style=for-the-badge)]()
+
+> *"Intelligence is not trained. It is grown."*
+
+</div>
+
+---
+
+## 🏛️ SYSTEM ARCHITECTURE
+
+**AirborneHRS V2.0.0** is an Adaptive Cognitive Framework designed to augment standard neural networks with self-propagating maintenance capabilities.
+
+It functions as a **Symbiotic Layer** that wraps around a PyTorch `nn.Module`, introducing four parallel cognitive loops that operate during the standard training pass. These loops handle **Predictive Foresight**, **Sparse Routing**, **Relational Memory**, and **Autonomic Repair** without requiring manual intervention from the engineer.
+
+---
+
+## 🧬 TECHNICAL SPECIFICATIONS
+
+### 1. ORACLE ENGINE (World Model)
+
+**[Deep Dive ↗](docs/technical/SYNTHETIC_INTUITION.md#1-the-world-model) | [Math Proof ↗](docs/math/PREDICTIVE_SURPRISE.md)**
+
+The framework implements a **Joint-Embedding Predictive Architecture (I-JEPA)** to enable self-supervised foresight. Instead of predicting tokens, the model projects the current state $z_t$ forward in time.
+
+*   **Surprise Loss ($\mathcal{L}_{S}$)**: The divergence between the *predicted* future and the *actual* encoded future serves as an intrinsic supervision signal:
+
+$$
+\mathcal{L}_{S} = || P_\phi(z_t, a_t) - E_\theta(x_{t+1}) ||_2^2
+$$
+
+This forces the model to learn causal dynamics and object permanence independent from the primary task labels.
+
+### 2. SCALABLE FRACTAL ROUTING (H-MoE)
+**[Deep Dive ↗](docs/technical/SYNTHETIC_INTUITION.md#2-hierarchical-mixture-of-experts) | [Math Proof ↗](docs/math/FRACTAL_ROUTING.md)**
+
+To decouple model capacity from inference cost, V2.0.0 utilizes a **Bi-Level Hierarchical Mixture of Experts**.
+
+*   **Topology**: A dual-layer router first classifies the input domain (e.g., Audio vs Visual), then routes to fine-grained expert MLPs.
+*   **Capacity**:
+    The active parameter set $\Theta_{active}$ is a sparse subset of total parameters $\Theta_{total}$:
+
+$$
+y = \sum_{i \in \text{TopK}(G(x))} G(x)_i \cdot E_i(x)
+$$
+
+    where $||G(x)||_0 = k \ll N$.
+    This allows for parameter counts reaching the trillions while maintaining $O(1)$ FLOPS during inference.
+
+### 3. RELATIONAL GRAPH MEMORY
+**[Deep Dive ↗](docs/technical/SYNTHETIC_INTUITION.md#3-relational-graph-memory) | [Math Proof ↗](docs/math/SEMANTIC_GRAPH.md)**
+
+AirborneHRS deprecates linear buffers in favor of a **Dynamic Semantic Graph** $G = \{V, E\}$.
+
+*   **Storage**: Events are stored as nodes $N_i$.
+*   **Retrieval**: Links ($E_{ij}$) are formed based on latent cosine similarity $\phi$:
+
+$$
+\phi(z_i, z_j) = \frac{z_i \cdot z_j}{||z_i|| ||z_j||}
+$$
+
+    When a query $q$ enters the system, activation spreads across edges where $\phi > \tau$, retrieving not just the specific memory but its semantic context.
+
+### 4. NEURAL HEALTH MONITOR (Autonomic Repair)
+**[Deep Dive ↗](docs/technical/SYNTHETIC_INTUITION.md#4-neural-health-monitor) | [Math Proof ↗](docs/math/AUTONOMIC_REPAIR.md)**
+
+A background daemon continuously profiles the statistical distribution of gradients and activations across all layers.
+
+*   **Instability Detection**:
+    We compute the Z-Score of the gradient norm $||\nabla\theta||$ relative to its running history ($\mu_{grad}, \sigma_{grad}$):
+
+$$
+Z_{grad} = \frac{||\nabla\theta|| - \mu_{grad}}{\sigma_{grad}}
+$$
+* **Intervention**:
+  * **Dead Neurons**: If $P(activation=0) > 0.95$, the layer is re-initialized.
+  * **Exploding Gradients**: If $Z_{grad} > 3.0$, the learning rate is dynamically damped via a non-linear decay factor.
+
+---
+
+## ⚡ INTEGRATION PROTOCOL
+
+The architecture is designed for "One-Line Injection". The complexity of the sub-systems is abstracted behind a factory configuration.
+
+```python
+from airbornehrs import AdaptiveFramework, AdaptiveFrameworkConfig
+
+# 1. ACQUIRE HOST MODEL
+model = MyNeuralNet() 
+
+# 2. INJECT COGNITIVE LAYER (Production Spec)
+# Initializes World Model, MoE Router, and Graph Memory.
+agent = AdaptiveFramework(model, AdaptiveFrameworkConfig.production())
+
+# 3. EXECUTE TRAINING
+# The agent internally manages the multi-objective loss landscape.
+metrics = agent.train_step(inputs, targets)
+
+print(f"Surprise: {metrics['surprise']:.4f} | Active Experts: {metrics['active_experts']}")
+```
+
+---
+
+## 🖥️ TELEMETRY INTERFACE
+
+Visualizing the internal state (Surprise, Memory Adjacency, Expert Utilization) is possible via the CLI dashboard.
+
+```bash
+python -m airbornehrs --demo
+```
+
+![Telemetry](https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExMnNhczlyMjJob2VzaGU4YTN6amJ1a2k2eXRvNjlpejFxbGg5cGh6bCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/1fM9ePvlVcqZ2/giphy.gif)
+
+---
+
+## 📂 RESEARCH DOCUMENTATION
+
+* [**INITIATION** (Getting Started)](docs/guides/GETTING_STARTED.md)
+* [**ARCHITECTURE SPECIFICATIONS**](docs/technical/SYNTHETIC_INTUITION.md)
+* [**API REFERENCE**](docs/API_REFERENCE.md)
+
+---
+
+<div align="center">
+<b>LEAD ARCHITECT: SURYAANSH PRITHVIJIT SINGH</b><br>
+<i>V2.0.0 Release // 2026</i>
+</div>

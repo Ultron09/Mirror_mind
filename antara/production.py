@@ -19,8 +19,8 @@ from pathlib import Path
 import logging
 import threading
 
-from airbornehrs.core import AdaptiveFramework, AdaptiveFrameworkConfig
-from airbornehrs.meta_controller import MetaController, MetaControllerConfig
+from antara.core import AdaptiveFramework, AdaptiveFrameworkConfig
+from antara.meta_controller import MetaController, MetaControllerConfig
 
 
 class InferenceMode:
