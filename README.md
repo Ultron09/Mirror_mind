@@ -2,11 +2,11 @@
 <p align="center">
   <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExM25uN3JsNXpvejc0a3B3NXBucGU4NGd2eWJlYTBwc2xqdWdpejcyNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/foecxPebqfDx5gxQCU/giphy.gif" width="760"/>
 </p>
-# AIRBORNE-ANTARA
-### Adaptive Neural Thinking Architecture For Recursive Autonomy
+<h1>AIRBORNE-ANTARA</h1>
+<h3>Adaptive Neural Thinking Architecture For Recursive Autonomy</h3>
 
 
-### **V2.0.0 // CODENAME: "SYNTHETIC INTUITION"**
+<h3><b>V2.0.0 // CODENAME: "SYNTHETIC INTUITION"</b></h3>
 
 [![Architecture](https://img.shields.io/badge/ARCH-POST_TRANSFORMER-000000.svg?style=for-the-badge&logo=pytorch)]()
 [![System](https://img.shields.io/badge/SYSTEM-ADAPTIVE_META_LEARNING-purple.svg?style=for-the-badge)]()
