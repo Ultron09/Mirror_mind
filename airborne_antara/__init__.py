@@ -1,5 +1,5 @@
 """
-antara: Production-ready adaptive meta-learning framework
+airborne_antara: Production-ready adaptive meta-learning framework
 ==============================================================
 
 A lightweight Python package enabling continuous model learning and improvement

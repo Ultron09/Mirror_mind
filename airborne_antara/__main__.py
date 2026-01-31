@@ -3,7 +3,7 @@ ANTARA - Adaptive Neural Telemetry & Research Assistant
 ========================================================
 Advanced Sci-Fi CLI with Detailed Framework Information
 
-Usage: python -m antara
+Usage: python -m airborne_antara
 """
 import sys
 import time
@@ -138,14 +138,14 @@ def get_system_info() -> Dict[str, str]:
 def check_modules() -> Dict[str, Tuple[bool, str]]:
     """Verify core modules with detailed error reporting"""
     modules = {
-        "Core Framework": ("antara.core", "AdaptiveFramework"),
-        "Memory System": ("antara.memory", "UnifiedMemoryHandler"),
-        "Consciousness": ("antara.consciousness_v2", "EnhancedConsciousnessCore"),
-        "Meta Controller": ("antara.meta_controller", "MetaController"),
-        "World Model": ("antara.world_model", "WorldModel"),
-        "Health Monitor": ("antara.health_monitor", "NeuralHealthMonitor"),
-        "Adapters": ("antara.adapters", "AdapterBank"),
-        "MoE Router": ("antara.moe", "HierarchicalMoE"),
+        "Core Framework": ("airborne_antara.core", "AdaptiveFramework"),
+        "Memory System": ("airborne_antara.memory", "UnifiedMemoryHandler"),
+        "Consciousness": ("airborne_antara.consciousness_v2", "EnhancedConsciousnessCore"),
+        "Meta Controller": ("airborne_antara.meta_controller", "MetaController"),
+        "World Model": ("airborne_antara.world_model", "WorldModel"),
+        "Health Monitor": ("airborne_antara.health_monitor", "NeuralHealthMonitor"),
+        "Adapters": ("airborne_antara.adapters", "AdapterBank"),
+        "MoE Router": ("airborne_antara.moe", "HierarchicalMoE"),
     }
     
     status = {}
@@ -444,7 +444,7 @@ def create_quickstart():
     if not HAS_RICH:
         return None
     
-    code = '''from antara import AdaptiveFramework, AdaptiveFrameworkConfig
+    code = '''from airborne_antara import AdaptiveFramework, AdaptiveFrameworkConfig
 import torch.nn as nn
 
 # 1. Define your base model

@@ -3,6 +3,7 @@
   <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExM25uN3JsNXpvejc0a3B3NXBucGU4NGd2eWJlYTBwc2xqdWdpejcyNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/foecxPebqfDx5gxQCU/giphy.gif" width="760"/>
 </p>
 # AIRBORNE-ANTARA
+### Adaptive Neural Thinking Architecture For Recursive Autonomy
 
 
 ### **V2.0.0 // CODENAME: "SYNTHETIC INTUITION"**
