@@ -1,2 +1,2 @@
 [console_scripts]
-mm = antara.__main__:main
+mm = airborne_antara.__main__:main
