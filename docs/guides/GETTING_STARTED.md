@@ -1,22 +1,22 @@
-# 🧠 Getting Started with AirborneHRS V2.0.0
+# 🧠 Getting Started with Airborne-Antara V2.0.0
 
-AirborneHRS "Synthetic Intuition" is designed to be the simplest way to add State-of-the-Art cognitive capabilities to any PyTorch model.
+Airborne-Antara "Synthetic Intuition" is designed to be the simplest way to add State-of-the-Art cognitive capabilities to any PyTorch model.
 
 ## 📦 1. Installation
 
 ```bash
-pip install airbornehrs
+pip install airborne-antara
 ```
 
 ## 🚀 2. The "3-Step" Cognitive Upgrade
 
-You do not need to rewrite your model. AirborneHRS wraps around it.
+You do not need to rewrite your model. Airborne-Antara wraps around it.
 
 ### Step 1: Import the Framework
 ```python
 import torch
 import torch.nn as nn
-from airbornehrs import AdaptiveFramework, AdaptiveFrameworkConfig
+from airborne_antara import AdaptiveFramework, AdaptiveFrameworkConfig
 ```
 
 ### Step 2: Define Your Standard Model
@@ -69,7 +69,7 @@ print(f"Active Memory Nodes: {len(agent.memory.graph_memory.nodes)}")
 To see what your agent is "thinking" (its surprise levels, active experts, memory recall), run the dashboard in a separate terminal:
 
 ```bash
-python -m airbornehrs --demo
+python -m airborne_antara --demo
 ```
 
 ## 🔧 Advanced Configuration

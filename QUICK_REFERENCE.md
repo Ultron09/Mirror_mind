@@ -33,7 +33,7 @@ Key Features:     System 2 Thinking, Consciousness Core, Unified Memory
 
 ### Win #1: Fix Integration (2h, +0.3pts)
 ```
-Files:     airbornehrs/ewc.py + meta_controller.py
+Files:     airborne_antara/ewc.py + meta_controller.py
 Task:      Fix PerformanceSnapshot & MetaController signatures
 Result:    All tests pass
 Status:    ⏸️ Ready to execute
@@ -41,7 +41,7 @@ Status:    ⏸️ Ready to execute
 
 ### Win #2: Config Validation (4h, +0.2pts)
 ```
-File:      airbornehrs/validation.py (NEW)
+File:      airborne_antara/validation.py (NEW)
 Task:      Add ConfigValidator class, check hyperparams
 Result:    Users catch mistakes at setup time
 Status:    ⏸️ Ready to execute

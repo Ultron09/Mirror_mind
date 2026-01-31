@@ -8,7 +8,7 @@
 ## 🎯 Quick Start (Pick One)
 
 ### I want to...
-- **Learn what airbornehrs is** → `docs/guides/GETTING_STARTED.md`
+- **Learn what airborne-antara is** → `docs/guides/GETTING_STARTED.md`
 - **Know if it's good** → `docs/assessment/AIRBORNEHRS_ASSESSMENT.md`
 - **Use the API** → `docs/guides/API.md`
 - **Implement it** → `docs/guides/IMPLEMENTATION_GUIDE.md`
@@ -42,7 +42,7 @@ protocols/
 tools/
 └── arc_agi/                 ← ARC-AGI specific tools (9 files)
 
-airbornehrs/                 ← Core package implementation
+airborne_antara/                 ← Core package implementation
 
 examples/                    ← Example usage code
 experiments/                 ← Experimental implementations
@@ -103,8 +103,8 @@ python tests/validation/validate_bug_fixes.py
 
 ### Benchmarks
 ```bash
-# Run airbornehrs assessment
-python tests/benchmarks/airbornehrs_comprehensive_assessment.py
+# Run airborne-antara assessment
+python tests/benchmarks/airborne_antara_comprehensive_assessment.py
 
 # Run ANTARA benchmarks
 python tests/benchmarks/mirrorming_quick_benchmark.py

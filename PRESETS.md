@@ -1,11 +1,11 @@
-﻿# ANTARA Presets System
+﻿# AIRBORNE-ANTARA Presets System
 
 ## One-Liner Magic ✨
 
 Transform your model into a production-grade adaptive learner with a single line:
 
 ```python
-from airbornehrs import AdaptiveFramework, PRESETS
+from airborne_antara import AdaptiveFramework, PRESETS
 
 # Production-ready
 framework = AdaptiveFramework(model, config=PRESETS.production())
@@ -354,7 +354,7 @@ Logging:                minimal
 ### Simple: One-liner
 
 ```python
-from airbornehrs import AdaptiveFramework, PRESETS
+from airborne_antara import AdaptiveFramework, PRESETS
 import torch
 
 model = YourModel()
@@ -366,7 +366,7 @@ framework = AdaptiveFramework(model, config=PRESETS.production())
 ### Intermediate: Load by name
 
 ```python
-from airbornehrs import load_preset
+from airborne_antara import load_preset
 
 config = load_preset('accuracy_focus')
 framework = AdaptiveFramework(model, config=config)
@@ -375,7 +375,7 @@ framework = AdaptiveFramework(model, config=config)
 ### Advanced: Customize a preset
 
 ```python
-from airbornehrs import PRESETS
+from airborne_antara import PRESETS
 
 # Start with production, customize
 config = PRESETS.production().customize(
@@ -389,7 +389,7 @@ framework = AdaptiveFramework(model, config=config)
 ### Expert: Merge presets
 
 ```python
-from airbornehrs import PRESETS
+from airborne_antara import PRESETS
 
 # Combine production stability with creativity
 config = PRESETS.production().merge(PRESETS.creativity_boost())
@@ -403,7 +403,7 @@ config = (PRESETS.fast()
 ### Compare presets
 
 ```python
-from airbornehrs import list_presets, compare_presets
+from airborne_antara import list_presets, compare_presets
 
 # List all presets
 presets = list_presets()
@@ -632,7 +632,7 @@ A: Presets auto-adjust based on performance. No manual tuning needed.
 
 ```python
 # Your complete training loop:
-from airbornehrs import AdaptiveFramework, PRESETS
+from airborne_antara import AdaptiveFramework, PRESETS
 
 model = YourModel()
 framework = AdaptiveFramework(model, config=PRESETS.production())

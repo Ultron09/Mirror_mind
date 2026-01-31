@@ -3,7 +3,7 @@
 
 ### Enable Consciousness (Default)
 ```python
-from airbornehrs import AdaptiveFramework, AdaptiveFrameworkConfig
+from airborne_antara import AdaptiveFramework, AdaptiveFrameworkConfig
 
 config = AdaptiveFrameworkConfig(
     enable_consciousness=True,      # ← Self-aware learning
@@ -118,10 +118,10 @@ loss = criterion(pred, y)
 
 ### Files Modified
 
-- `airbornehrs/consciousness.py` (new) — Consciousness components
-- `airbornehrs/core.py` — Consciousness observation & consolidation override
-- `airbornehrs/__init__.py` — Added consciousness exports
-- `airbornehrs/memory.py` — Unified handler with adaptive lambda
+- `airborne_antara/consciousness.py` (new) — Consciousness components
+- `airborne_antara/core.py` — Consciousness observation & consolidation override
+- `airborne_antara/__init__.py` — Added consciousness exports
+- `airborne_antara/memory.py` — Unified handler with adaptive lambda
 
 ### Version Info
 

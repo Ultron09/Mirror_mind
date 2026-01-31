@@ -2,7 +2,7 @@
 <p align="center">
   <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExM25uN3JsNXpvejc0a3B3NXBucGU4NGd2eWJlYTBwc2xqdWdpejcyNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/foecxPebqfDx5gxQCU/giphy.gif" width="760"/>
 </p>
-# AIRBORNE.HRS
+# AIRBORNE-ANTARA
 
 
 ### **V2.0.0 // CODENAME: "SYNTHETIC INTUITION"**
@@ -19,7 +19,7 @@
 
 ## 🏛️ SYSTEM ARCHITECTURE
 
-**AirborneHRS V2.0.0** is an Adaptive Cognitive Framework designed to augment standard neural networks with self-propagating maintenance capabilities.
+**Airborne-Antara V2.0.0** is an Adaptive Cognitive Framework designed to augment standard neural networks with self-propagating maintenance capabilities.
 
 It functions as a **Symbiotic Layer** that wraps around a PyTorch `nn.Module`, introducing four parallel cognitive loops that operate during the standard training pass. These loops handle **Predictive Foresight**, **Sparse Routing**, **Relational Memory**, and **Autonomic Repair** without requiring manual intervention from the engineer.
 
@@ -60,7 +60,7 @@ $$
 ### 3. RELATIONAL GRAPH MEMORY
 **[Deep Dive ↗](docs/technical/SYNTHETIC_INTUITION.md#3-relational-graph-memory) | [Math Proof ↗](docs/math/SEMANTIC_GRAPH.md)**
 
-AirborneHRS deprecates linear buffers in favor of a **Dynamic Semantic Graph** $G = \{V, E\}$.
+Airborne-Antara deprecates linear buffers in favor of a **Dynamic Semantic Graph** $G = \{V, E\}$.
 
 *   **Storage**: Events are stored as nodes $N_i$.
 *   **Retrieval**: Links ($E_{ij}$) are formed based on latent cosine similarity $\phi$:
@@ -93,7 +93,7 @@ $$
 The architecture is designed for "One-Line Injection". The complexity of the sub-systems is abstracted behind a factory configuration.
 
 ```python
-from airbornehrs import AdaptiveFramework, AdaptiveFrameworkConfig
+from airborne_antara import AdaptiveFramework, AdaptiveFrameworkConfig
 
 # 1. ACQUIRE HOST MODEL
 model = MyNeuralNet() 
@@ -116,7 +116,7 @@ print(f"Surprise: {metrics['surprise']:.4f} | Active Experts: {metrics['active_e
 Visualizing the internal state (Surprise, Memory Adjacency, Expert Utilization) is possible via the CLI dashboard.
 
 ```bash
-python -m airbornehrs --demo
+python -m airborne_antara --demo
 ```
 
 ![Telemetry](https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExMnNhczlyMjJob2VzaGU4YTN6amJ1a2k2eXRvNjlpejFxbGg5cGh6bCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/1fM9ePvlVcqZ2/giphy.gif)

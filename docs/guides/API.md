@@ -3,7 +3,7 @@
 
 ## Overview
 
-`airbornehrs` provides three main components for adaptive meta-learning:
+`airborne_antara` provides three main components for adaptive meta-learning:
 
 1. **AdaptiveFramework** : Core learner with introspection and online adaptation
 2. **MetaController** : Advanced adaptation orchestration (learning to learn)
@@ -17,7 +17,7 @@ Base learner class that implements continuous learning through introspection.
 ### Configuration
 
 ```
-from airbornehrs import AdaptiveFrameworkConfig
+from airborne_antara import AdaptiveFrameworkConfig
 
 config = AdaptiveFrameworkConfig(
     # Model architecture
@@ -46,7 +46,7 @@ config = AdaptiveFrameworkConfig(
 ### Initialization
 
 ```
-from airbornehrs import AdaptiveFramework
+from airborne_antara import AdaptiveFramework
 
 framework = AdaptiveFramework(config, device='cuda')
 ```
@@ -157,7 +157,7 @@ Advanced meta-learning orchestrator for the optimization cycle.
 ### Initialization
 
 ```
-from airbornehrs import MetaController, MetaControllerConfig
+from airborne_antara import MetaController, MetaControllerConfig
 
 config = MetaControllerConfig(
     base_lr=1e-3,                       # Base learning rate
@@ -212,7 +212,7 @@ summary = controller.get_summary()
 Analyzes gradient statistics for adaptation decisions.
 
 ```
-from airbornehrs import GradientAnalyzer
+from airborne_antara import GradientAnalyzer
 
 analyzer = GradientAnalyzer(model, config)
 
@@ -229,7 +229,7 @@ should_reduce = analyzer.should_reduce_lr()
 Adapts learning rate based on loss landscape and gradients.
 
 ```
-from airbornehrs import DynamicLearningRateScheduler
+from airborne_antara import DynamicLearningRateScheduler
 
 scheduler = DynamicLearningRateScheduler(optimizer, config)
 
@@ -245,7 +245,7 @@ current_lr = scheduler.get_lr()
 Implements curriculum learning: easy-to-hard task progression.
 
 ```
-from airbornehrs import CurriculumStrategy
+from airborne_antara import CurriculumStrategy
 
 curriculum = CurriculumStrategy(config)
 
@@ -266,7 +266,7 @@ Simplified API for production inference with optional online learning.
 ### Initialization
 
 ```
-from airbornehrs import ProductionAdapter, InferenceMode
+from airborne_antara import ProductionAdapter, InferenceMode
 
 # Static inference (no learning)
 adapter = ProductionAdapter.load_checkpoint(
@@ -372,7 +372,7 @@ Use research-accurate terms instead of marketing buzzwords:
 ### Basic Training
 
 ```
-from airbornehrs import AdaptiveFramework, AdaptiveFrameworkConfig
+from airborne_antara import AdaptiveFramework, AdaptiveFrameworkConfig
 import torch
 
 config = AdaptiveFrameworkConfig(model_dim=128, num_layers=4)
@@ -391,7 +391,7 @@ framework.save_checkpoint("model.pt")
 ### Production with Online Learning
 
 ```
-from airbornehrs import ProductionAdapter, InferenceMode
+from airborne_antara import ProductionAdapter, InferenceMode
 
 adapter = ProductionAdapter.load_checkpoint(
     "model.pt",
@@ -409,7 +409,7 @@ for data_batch in incoming_data_stream:
 ### Advanced Meta-Learning
 
 ```
-from airbornehrs import AdaptiveFramework, MetaController
+from airborne_antara import AdaptiveFramework, MetaController
 
 framework = AdaptiveFramework(config)
 controller = MetaController(framework)
@@ -448,11 +448,11 @@ for epoch in range(10):
 
 ## Citation
 
-If you use airbornehrs in your research or applications:
+If you use airborne-antara in your research or applications:
 
 ```
 @software{airbornehrs2026,
-  title = {airbornehrs v1.1.1 Sentient: Production-Ready Adaptive Meta-Learning Framework},
+  title = {airborne-antara v1.1.1 Sentient: Production-Ready Adaptive Meta-Learning Framework},
   author = {Singh, Suryaansh Prithvijit},
   year = {2026},
   version = {1.1.1},
